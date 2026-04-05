@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "tsx src/index.ts"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +18,7 @@
     "express": "^5.2.1"
   },
   "devDependencies": {
+    "@tsconfig/node22": "^22.0.5",
     "@types/express": "^5.0.6",
     "@types/node": "^25.5.0",
     "ts-node": "^10.9.2",
