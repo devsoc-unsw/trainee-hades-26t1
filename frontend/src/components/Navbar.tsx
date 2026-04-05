@@ -8,13 +8,15 @@ export default function Navbar() {
   // Helper function -> determines if link is active
   const isActive = (path: string) => pathname === path;
 
-  const linkStyles = "px-4 py-1 rounded-full transition-colors";
-  const activeStyles = "bg-(--dark-blue) text-white hover:text-(--light-blue)";
-  const inactiveStyles = "hover:text-white)";
+  const linkStyles = "px-4 py-2 rounded-full transition-colors duration-200";
+  const activeStyles = "bg-(--dark-blue) text-white hover:text-white/70";
+  const inactiveStyles = "hover:text-(--dark-blue)/60";
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-(--pastel-yellow) text-(--dark-blue) border-b-2 border-(--dark-blue) h-16 flex items-center px-6 justify-between">
-      <span className="font-mono font-bold text-xl">StudyNook.</span>
+      <span className="font-(family-name:--font-pixelify) font-bold text-2xl transition-transform duration-300 hover:scale-105">
+        StudyNook.
+      </span>
       <div className="flex gap-6 text-l">
         <Link
           href="/"
