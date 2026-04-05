@@ -1,12 +1,9 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 export default function Navbar() {
-  const pathname = usePathname();
-
-  // Helper function -> determines if link is active
-  const isActive = (path: string) => pathname === path;
+  const [activePath, setActivePath] = useState("/");
 
   const linkStyles = "px-4 py-2 rounded-full transition-colors duration-200";
   const activeStyles = "bg-(--dark-blue) text-white hover:text-white/70";
@@ -21,7 +18,7 @@ export default function Navbar() {
         <Link
           href="/"
           className={`${linkStyles} ${
-            isActive("/") ? activeStyles : inactiveStyles
+            activePath == "/" ? activeStyles : inactiveStyles
           }`}
         >
           Home
@@ -29,16 +26,18 @@ export default function Navbar() {
         <Link
           href="/rooms"
           className={`${linkStyles} ${
-            isActive("/rooms") ? activeStyles : inactiveStyles
+            activePath == "/rooms" ? activeStyles : inactiveStyles
           }`}
+          onClick={() => setActivePath("/rooms")}
         >
           Rooms
         </Link>
         <Link
           href="/profile"
           className={`${linkStyles} ${
-            isActive("/profile") ? activeStyles : inactiveStyles
+            activePath == "/profile" ? activeStyles : inactiveStyles
           }`}
+          onClick={() => setActivePath("/profile")}
         >
           Profile
         </Link>
