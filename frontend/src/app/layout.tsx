@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Pixelify_Sans } from "next/font/google";
 import "./globals.css";
+
+const pixelify_sans = Pixelify_Sans({
+  subsets: ["cyrillic", "latin"],
+  variable: "--font-pixelify",
+});
 
 export const metadata: Metadata = {
   title: "StudyNook",
@@ -14,7 +19,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className={`min-h-full flex flex-col ${pixelify_sans.className}`}>
+        {children}
+      </body>
     </html>
   );
 }
