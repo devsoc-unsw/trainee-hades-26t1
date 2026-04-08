@@ -3,13 +3,27 @@ import { useState } from "react";
 import { Trash2, Check, Plus } from "lucide-react";
 
 export default function TodoList() {
-  const [tasks, setTasks] = useState<string[]>([]);
+  const [tasks, setTasks] = useState<{ text: string; completed: boolean }[]>(
+    [],
+  );
   const [input, setInput] = useState("");
 
   const addTask = () => {
     if (!input.trim()) return;
-    setTasks([...tasks, input.trim()]);
+    setTasks([...tasks, { text: input.trim(), completed: false }]);
     setInput("");
+  };
+
+  const toggleTask = (i: number) => {
+    setTasks(
+      tasks.map((task, idx) =>
+        idx === i ? { ...task, completed: !task.completed } : task,
+      ),
+    );
+  };
+
+  const deleteTask = (i: number) => {
+    setTasks(tasks.filter((_, idx) => idx !== i));
   };
 
   return (
@@ -31,18 +45,28 @@ export default function TodoList() {
         </button>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 overflow-y-auto max-h-64">
         {tasks.map((task, i) => (
           <div
             key={i}
             className="flex items-center justify-between bg-(--dark-blue) text-white rounded-[15px] px-4 py-3"
           >
-            <span className="font-mono">{task}</span>
+            <span
+              className={`font-mono ${task.completed ? "line-through opacity-50" : ""}`}
+            >
+              {task.text}
+            </span>
             <div className="flex items-center gap-2">
-              <button className="cursor-pointer text-white hover:opacity-50 transition-opacity duration-150">
+              <button
+                onClick={() => toggleTask(i)}
+                className="cursor-pointer text-white hover:opacity-50 transition-opacity duration-150"
+              >
                 <Check size={16} />
               </button>
-              <button className="cursor-pointer text-white hover:opacity-50 transition-opacity duration-150">
+              <button
+                onClick={() => deleteTask(i)}
+                className="cursor-pointer text-white hover:opacity-50 transition-opacity duration-150"
+              >
                 <Trash2 size={16} />
               </button>
             </div>
