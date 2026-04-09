@@ -4,7 +4,7 @@ import { Trash2, Check, Plus } from "lucide-react";
 
 export default function TodoList() {
   const [tasks, setTasks] = useState<{ text: string; completed: boolean }[]>(
-    [],
+    []
   );
   const [input, setInput] = useState("");
 
@@ -17,8 +17,8 @@ export default function TodoList() {
   const toggleTask = (i: number) => {
     setTasks(
       tasks.map((task, idx) =>
-        idx === i ? { ...task, completed: !task.completed } : task,
-      ),
+        idx === i ? { ...task, completed: !task.completed } : task
+      )
     );
   };
 
@@ -49,10 +49,12 @@ export default function TodoList() {
         {tasks.map((task, i) => (
           <div
             key={i}
-            className="flex items-center justify-between bg-(--dark-blue) text-white rounded-[15px] px-4 py-3"
+            className={`flex items-center justify-between bg-(--dark-blue) text-white rounded-[15px] px-4 py-3 ${
+              task.completed ? "opacity-50" : ""
+            }`}
           >
             <span
-              className={`font-mono ${task.completed ? "line-through opacity-50" : ""}`}
+              className={`font-mono ${task.completed ? "line-through" : ""}`}
             >
               {task.text}
             </span>
