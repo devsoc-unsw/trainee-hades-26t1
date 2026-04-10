@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { SkipForward, Settings } from "lucide-react";
+import { SkipForward, Settings, X, Save } from "lucide-react";
 
 type Phase = "pomo" | "short" | "long";
 
@@ -11,6 +11,15 @@ export default function PomodoroTimer() {
   const [seconds, setSeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [pomoCount, setPomoCount] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+
+  const [durations, setDurations] = useState({
+    pomo: 25,
+    short: 5,
+    long: 15,
+  });
+
+  const [draft, setDraft] = useState(durations);
 
   const currentPhase: Phase = isLongBreak ? "long" : isBreak ? "short" : "pomo";
 
@@ -27,7 +36,13 @@ export default function PomodoroTimer() {
     if (currentPhase === "pomo") setPomoCount((c) => c + 1);
     setIsBreak(phase === "short");
     setIsLongBreak(phase === "long");
-    setMinutes(phase === "pomo" ? 25 : phase === "short" ? 5 : 15);
+    setMinutes(
+      phase === "pomo"
+        ? durations.pomo
+        : phase === "short"
+          ? durations.short
+          : durations.long,
+    );
     setSeconds(0);
     setIsRunning(keepRunning);
   };
@@ -36,6 +51,19 @@ export default function PomodoroTimer() {
     const next = getNextPhase(currentPhase);
     if (!next) return;
     goToPhase(next, true);
+  };
+
+  const handleSaveSettings = () => {
+    setDurations(draft);
+    setMinutes(draft[currentPhase]);
+    setSeconds(0);
+    setIsRunning(false);
+    setShowSettings(false);
+  };
+
+  const handleOpenSettings = () => {
+    setDraft(durations);
+    setShowSettings(true);
   };
 
   useEffect(() => {
@@ -51,24 +79,84 @@ export default function PomodoroTimer() {
         // Timer finished
         setIsBreak(true);
         setIsLongBreak(false);
-        setMinutes(5);
+        setMinutes(durations.short);
         setSeconds(0);
         setIsRunning(true);
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning, minutes, seconds]);
+  }, [isRunning, minutes, seconds, durations]);
 
   return (
-    <div className="w-106.25 h-68 bg-(--light-blue) rounded-[30px] border-4 border-(--dark-blue) p-8 flex flex-col items-center justify-center gap-6">
+    <div className="relative w-106.25 h-68 bg-(--light-blue) rounded-[30px] border-4 border-(--dark-blue) p-8 flex flex-col items-center justify-center gap-6">
+      {/* Settings */}
+      {showSettings && (
+        <div className="absolute inset-0 bg-(--light-blue) rounded-[30px] z-10 flex flex-col p-7 gap-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-(--dark-blue) font-bold text-xl">Settings</h2>
+            <button
+              onClick={() => setShowSettings(false)}
+              className="text-white p-1 bg-(--dark-blue) rounded-md hover:opacity-50 cursor-pointer"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {(["pomo", "short", "long"] as Phase[]).map((phase) => (
+            <div key={phase} className="flex justify-between items-center">
+              <label className="text-(--dark-blue)">
+                {phase === "pomo"
+                  ? "Pomodoro"
+                  : phase === "short"
+                    ? "Short Break"
+                    : "Long Break"}
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={200}
+                value={draft[phase]}
+                onChange={(e) => {
+                  const val = Math.min(
+                    200,
+                    Math.max(1, Number(e.target.value)),
+                  );
+                  setDraft((d) => ({ ...d, [phase]: val }));
+                }}
+                className="w-16 text-center font-mono text-(--dark-blue) bg-white/75 border-2 border-(--dark-blue) rounded-md"
+              />
+            </div>
+          ))}
+
+          <div className="flex justify-center items-center gap-4 mt-1">
+            <button
+              onClick={() => {
+                setDraft({ pomo: 25, short: 5, long: 15 });
+              }}
+              className="text-sm rounded-lg w-25 px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-white/75 cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75"
+            >
+              Reset
+            </button>
+            <button
+              onClick={handleSaveSettings}
+              className="text-sm rounded-lg w-75 px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-(--pastel-yellow) cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75"
+            >
+              <span className="flex items-center justify-center gap-2">
+                Save <Save size={16} className="inline" />
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Toggle */}
       <div className="flex gap-2 text-white">
         <button
           onClick={() => {
             setIsBreak(false);
             setIsLongBreak(false);
-            setMinutes(25);
+            setMinutes(durations.pomo);
             setSeconds(0);
             setIsRunning(false);
           }}
@@ -84,7 +172,7 @@ export default function PomodoroTimer() {
           onClick={() => {
             setIsBreak(true);
             setIsLongBreak(false);
-            setMinutes(5);
+            setMinutes(durations.short);
             setSeconds(0);
             setIsRunning(false);
           }}
@@ -100,7 +188,7 @@ export default function PomodoroTimer() {
           onClick={() => {
             setIsBreak(false);
             setIsLongBreak(true);
-            setMinutes(15);
+            setMinutes(durations.long);
             setSeconds(0);
             setIsRunning(false);
           }}
@@ -115,13 +203,16 @@ export default function PomodoroTimer() {
       </div>
 
       {/* Timer display */}
-      <p className="font-mono text-8xl text-(--dark-blue)">
+      <p className="bg-white/75 rounded-md w-full text-center font-mono text-8xl text-(--dark-blue)">
         {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
       </p>
 
       {/* Settings, Start, and Skip buttons */}
       <div className="flex gap-18 text-white">
-        <button className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer">
+        <button
+          onClick={handleOpenSettings}
+          className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer"
+        >
           <Settings size={24} />
         </button>
 
