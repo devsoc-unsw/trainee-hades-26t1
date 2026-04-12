@@ -4,7 +4,6 @@ import FilterBar from "@/components/FilterBar";
 import RoomCard from "@/components/RoomCard";
 import { useState } from "react";
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 
 //Mock Data for now
 const rooms = [
@@ -54,11 +53,9 @@ const rooms = [
 
 export default function Home() {
   const [filter, setFilter] = useState("");
-
   const [filteredRooms, setFilteredRooms] = useState(rooms);
 
   useEffect(() => {
-    console.log("Filter: " + filter);
     setFilteredRooms(
       rooms.filter(
         (room) =>
@@ -67,6 +64,10 @@ export default function Home() {
       ),
     );
   }, [filter]);
+
+  useEffect(() => {
+    setFilter("");
+  }, []);
 
   return (
     <div className="pt-18 overflow-x-hidden">
