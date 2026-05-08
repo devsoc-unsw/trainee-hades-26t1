@@ -14,9 +14,9 @@ export default function Room() {
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
-      <main className="flex h-[calc(100vh-64px)] mt-16">
+      <main className="flex flex-col xl:flex-row min-h-[calc(100vh-64px)] mt-16">
         {/* Room Content */}
-        <div className="w-3/4 flex flex-col items-start p-6 gap-6">
+        <div className="w-full xl:w-3/4 flex flex-col items-start p-6 gap-6">
           {/* Room Title */}
           <div className="w-full bg-(--dark-blue) text-white font-mono text-2xl tracking-widest px-8 py-5 rounded-xl flex items-center justify-between">
             {isEditing ? (
@@ -58,18 +58,19 @@ export default function Room() {
           </div>
 
           {/* Study Nook */}
-          <div className="flex-1 relative w-full bg-(--light-blue) border-4 border-(--dark-blue) rounded-xl overflow-hidden">
+          <div className="flex-1 relative w-full min-h-64 bg-(--light-blue) border-4 border-(--dark-blue) rounded-xl overflow-hidden">
             <Image
               src="/studyroom.png"
               alt="study room image placeholder"
               fill
+              priority
               className="object-cover"
             />
           </div>
         </div>
 
         {/* Productivity Tools (Pomdoro and Todo-List) */}
-        <div className="w-1/4 flex flex-col gap-6 p-6">
+        <div className="w-full xl:w-1/4 flex flex-col gap-6 p-6">
           <PomodoroTimer />
           <TodoList />
           {/* Chat Feature: To-be-implemented? */}
