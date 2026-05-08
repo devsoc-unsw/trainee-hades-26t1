@@ -89,7 +89,7 @@ export default function PomodoroTimer() {
   }, [isRunning, minutes, seconds, durations]);
 
   return (
-    <div className="relative w-106.25 h-68 bg-(--light-blue) rounded-[30px] border-4 border-(--dark-blue) p-8 flex flex-col items-center justify-center gap-6">
+    <div className="relative w-full bg-(--light-blue) rounded-[30px] border-4 border-(--dark-blue) p-4 sm:p-6 lg:p-8 flex flex-col items-center justify-center gap-4 lg:gap-6">
       {/* Settings */}
       {showSettings && (
         <div className="absolute inset-0 bg-(--light-blue) rounded-[30px] z-10 flex flex-col p-7 gap-4">
@@ -129,18 +129,18 @@ export default function PomodoroTimer() {
             </div>
           ))}
 
-          <div className="flex justify-center items-center gap-4 mt-1">
+          <div className="flex items-center gap-4 mt-1">
             <button
               onClick={() => {
                 setDraft({ pomo: 25, short: 5, long: 15 });
               }}
-              className="text-sm rounded-lg w-25 px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-white/75 cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75"
+              className="text-sm rounded-lg shrink-0 px-4 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-white/75 cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75"
             >
               Reset
             </button>
             <button
               onClick={handleSaveSettings}
-              className="text-sm rounded-lg w-75 px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-(--pastel-yellow) cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75"
+              className="text-sm rounded-lg flex-1 px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-(--pastel-yellow) cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75"
             >
               <span className="flex items-center justify-center gap-2">
                 Save <Save size={16} className="inline" />
@@ -151,7 +151,7 @@ export default function PomodoroTimer() {
       )}
 
       {/* Toggle */}
-      <div className="flex gap-2 text-white">
+      <div className="flex w-full gap-2 text-white">
         <button
           onClick={() => {
             setIsBreak(false);
@@ -160,7 +160,7 @@ export default function PomodoroTimer() {
             setSeconds(0);
             setIsRunning(false);
           }}
-          className={`cursor-pointer w-28 px-1 py-1 text-white transition hover:bg-(--dark-blue) ${
+          className={`cursor-pointer flex-1 px-1 py-1 text-white transition hover:bg-(--dark-blue) ${
             !isBreak && !isLongBreak
               ? "rounded-sm bg-(--dark-blue)"
               : "rounded-sm bg-(--dark-blue)/50"
@@ -176,7 +176,7 @@ export default function PomodoroTimer() {
             setSeconds(0);
             setIsRunning(false);
           }}
-          className={`cursor-pointer w-28 px-1 py-1 transition hover:bg-(--dark-blue) ${
+          className={`cursor-pointer flex-1 px-1 py-1 transition hover:bg-(--dark-blue) ${
             isBreak
               ? "rounded-sm bg-(--dark-blue)"
               : "rounded-sm bg-(--dark-blue)/50"
@@ -192,7 +192,7 @@ export default function PomodoroTimer() {
             setSeconds(0);
             setIsRunning(false);
           }}
-          className={`cursor-pointer w-28 px-1 py-1 transition hover:bg-(--dark-blue) ${
+          className={`cursor-pointer flex-1 px-1 py-1 transition hover:bg-(--dark-blue) ${
             isLongBreak
               ? "rounded-sm bg-(--dark-blue)"
               : "rounded-sm bg-(--dark-blue)/50"
@@ -203,12 +203,12 @@ export default function PomodoroTimer() {
       </div>
 
       {/* Timer display */}
-      <p className="bg-white/75 rounded-md w-full text-center font-mono text-8xl text-(--dark-blue)">
+      <p className="bg-white/75 rounded-md w-full text-center font-mono text-6xl lg:text-7xl 2xl:text-8xl text-(--dark-blue)">
         {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
       </p>
 
       {/* Settings, Start, and Skip buttons */}
-      <div className="flex gap-18 text-white">
+      <div className="flex justify-between w-full text-white">
         <button
           onClick={handleOpenSettings}
           className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer"
