@@ -38,7 +38,7 @@ export default function Navbar() {
           ))}
         </div>
 
-        {/* Hamburger button — icon fades between Menu and X */}
+        {/* Hamburger button */}
         <button
           type="button"
           className="md:hidden cursor-pointer p-2"
@@ -57,7 +57,7 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* Mobile dropdown — always rendered, slides in/out via max-height */}
+      {/* Mobile dropdown menu */}
       <div
         className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
           menuOpen ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
