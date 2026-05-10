@@ -7,62 +7,23 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from '@/supabaseClient';
 
-//Mock Data for now
-const rooms = [
-  {
-    id: 1,
-    name: "Data Struct",
-    subject: "Computer Science",
-    location: "Ainsworth Building",
-    imageUrl: "/ainsworth-building.jpg",
-  },
-  {
-    id: 2,
-    name: "Ethics",
-    subject: "Philosophy",
-    location: "Block B, Room 204",
-    imageUrl: "",
-  },
-  {
-    id: 3,
-    name: "Geography",
-    subject: "phsyics",
-    location: "Block C, Room 305",
-    imageUrl: "",
-  },
-  {
-    id: 4,
-    name: "UM Science",
-    subject: "Science",
-    location: "Block D, Room 406",
-    imageUrl: "",
-  },
-  {
-    id: 5,
-    name: "COMP2511",
-    subject: "Computer Science",
-    location: "Block E Room 507",
-    imageUrl: "",
-  },
-  {
-    id: 6,
-    name: "COMP6080",
-    subject: "Computer Science",
-    location: "Block F, Room 608",
-    imageUrl: "",
-  },
-];
+interface Room {
+  id: number;
+  roomTitle: string;
+  createdAt: string;
+  createdBy: string;
+}
 
 export default function Home() {
   const [filter, setFilter] = useState("");
-  const [filteredRooms, setFilteredRooms] = useState(rooms);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
 
   useEffect(() => {
     setFilteredRooms(
       rooms.filter(
         (room) =>
-          room.name.toLowerCase().includes(filter.toLowerCase()) ||
-          room.subject.toLowerCase().includes(filter.toLowerCase()),
+          room.roomTitle.toLowerCase().includes(filter.toLowerCase()),
       ),
     );
   }, [filter]);
@@ -111,6 +72,45 @@ export default function Home() {
     }
   }
 
+  const handleGetRooms = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+  
+      if (!token) {
+        alert("You must be logged in to view rooms.");
+        return;
+      }
+  
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms`,
+        {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        }
+      );
+  
+      if (!resp.ok) {
+        const errorData = await resp.json();
+        console.error("Error fetching rooms:", errorData.error);
+        alert(`Failed to fetch rooms: ${errorData.error}`);
+        return;
+      }
+  
+      const data = await resp.json();
+      console.log("Rooms fetched successfully:", data);
+      setRooms(data);
+      setFilteredRooms(data);
+    } catch (error) {
+      console.error("Error fetching rooms:", error);
+    }
+  }
+
+  useEffect(() => {
+    handleGetRooms();
+  }, []);
+
   return (
     <div className="pt-18 overflow-x-hidden">
       <Navbar />
@@ -131,9 +131,9 @@ export default function Home() {
             <RoomCard
               id={room.id}
               key={room.id}
-              name={room.name}
-              location={room.location}
-              imageUrl={room.imageUrl || undefined}
+              name={room.roomTitle}
+              // location={}
+              // imageUrl={}
             />
           ))}
         </div>

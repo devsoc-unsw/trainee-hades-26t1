@@ -68,9 +68,17 @@ router.post("/room", async (req: Request, res: Response) => {
 // GET /api/rooms - Get all rooms
 router.get("/", async (req: Request, res: Response) => {
   try {
-    const { data, error } = await supabase
+    const authHeader = req.header("authorization");
+    const accessToken = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7).trim()
+      : null;
+
+    // Use authenticated client if token provided, otherwise use unauthenticated
+    const querySupabase = accessToken ? createSupabaseClient(accessToken) : supabase;
+
+    const { data, error } = await querySupabase
       .from("rooms")
-      .select("*")
+      .select("id, roomTitle:room_title, createdBy:created_by, createdAt:created_at")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -89,10 +97,17 @@ router.get("/", async (req: Request, res: Response) => {
 router.get("/:roomId", async (req: Request, res: Response) => {
   try {
     const { roomId } = req.params;
+    const authHeader = req.header("authorization");
+    const accessToken = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7).trim()
+      : null;
 
-    const { data, error } = await supabase
+    // Use authenticated client if token provided, otherwise use unauthenticated
+    const querySupabase = accessToken ? createSupabaseClient(accessToken) : supabase;
+
+    const { data, error } = await querySupabase
       .from("rooms")
-      .select("*")
+      .select("id, roomTitle:room_title, createdBy:created_by, createdAt:created_at")
       .eq("room_id", roomId)
       .single();
 
