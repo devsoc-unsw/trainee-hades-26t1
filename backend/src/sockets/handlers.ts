@@ -1,5 +1,4 @@
 import { Server, Socket } from "socket.io";
-import { supabase } from "../config/supabase.js";
 
 export const setupSocketHandlers = (io: Server) => {
   io.on("connection", (socket: Socket) => {
