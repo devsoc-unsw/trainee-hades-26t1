@@ -12,23 +12,12 @@ router.post("/register", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Email, password and name are required" });
     }
 
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp(
+      { email, password, options: { data: { name: name } }
+    });
 
     if (error) {
       return res.status(400).json({ error: error.message });
-    }
-
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .insert({
-        id: data.user!.id,
-        name,
-        rooms: [],
-        currency: 0
-      });
-
-    if (profileError) {
-      return res.status(400).json({ error: profileError.message });
     }
 
     res.json(data); 
