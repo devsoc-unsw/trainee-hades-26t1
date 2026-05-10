@@ -8,4 +8,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Missing Supabase environment variables");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const createSupabaseClient = (accessToken?: string) => {
+  const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined;
+  const globalOptions = headers ? { headers } : {};
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: globalOptions,
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false
+    }
+  });
+};
+
+export const supabase = createSupabaseClient();

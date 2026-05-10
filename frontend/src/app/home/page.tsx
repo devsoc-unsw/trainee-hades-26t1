@@ -105,10 +105,10 @@ export default function Home() {
           <FilterBar value={filter} onChange={setFilter} />
           <Button 
             variant="outline" 
-            className="text-(--dark-blue) hover:text-(--dark-blue) border-(--dark-blue) border-2"
+            className="text-(--dark-blue) hover:text-(--dark-blue) border-(--dark-blue) border-2 cursor-pointer"
             onClick={() => handleCreateRoom("Backrooms!")}
           >
-            Create New Room
+            + New Room
           </Button>
         </div>
 

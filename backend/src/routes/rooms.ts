@@ -1,22 +1,33 @@
 import { Router, type Request, type Response } from "express";
-import { supabase } from "../config/supabase.js";
+import { createSupabaseClient, supabase } from "../config/supabase.js";
 
 const router: Router = Router();
 
-interface CreateRoomRequest {
-  roomTitle: string;
-}
-
-interface TodoItem {
-  content: string;
-  isDone: boolean;
-  createdAt: string;
-}
-
-// POST /room - Create a new room
-router.post("/room", async (req: Request<{}, {}, CreateRoomRequest>, res: Response) => {
+// POST /api/rooms/room - Create a new room
+router.post("/room", async (req: Request, res: Response) => {
   try {
     const { roomTitle } = req.body;
+    const authHeader = req.header("authorization");
+    
+    const accessToken = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7).trim()
+      : null;
+
+    if (!accessToken) {
+      return res.status(401).json({
+        error: "Missing or invalid Authorization header. Use: Bearer <access_token>."
+      });
+    }
+
+    const userSupabase = createSupabaseClient(accessToken);
+    const {
+      data: { user },
+      error: userError
+    } = await userSupabase.auth.getUser();
+
+    if (userError || !user) {
+      return res.status(401).json({ error: "Invalid or expired access token" });
+    }
 
     // Validate required fields
     if (!roomTitle) {
@@ -28,11 +39,11 @@ router.post("/room", async (req: Request<{}, {}, CreateRoomRequest>, res: Respon
     // Create room entry
     const roomData = {
       room_title: roomTitle,
-      created_by: "f9aef7ac-e022-4c56-b457-1491d730e0e3", // Placeholder, replace with actual user ID if authentication is implemented
+      created_by: user.id,
       created_at: new Date().toISOString()
     };
 
-    const { data: roomResult, error: roomError } = await supabase
+    const { data: roomResult, error: roomError } = await userSupabase
       .from("rooms")
       .insert([roomData])
       .select();
@@ -42,53 +53,10 @@ router.post("/room", async (req: Request<{}, {}, CreateRoomRequest>, res: Respon
       return res.status(500).json({ error: `Failed to create room: ${roomError.message}` });
     }
 
-    // Create todo entry
-    const todoData = {
-      items: [] as TodoItem[],
-      created_at: new Date().toISOString(),
-      room_id: roomResult[0].room_id
-    };
-
-    const { data: todoResult, error: todoError } = await supabase
-      .from("todos")
-      .insert([todoData])
-      .select();
-
-    if (todoError) {
-      console.error("Error creating todo:", todoError);
-      // Rollback room if todo fails
-      await supabase.from("rooms").delete().eq("room_id", roomResult[0].room_id);
-      return res.status(500).json({ error: `Failed to create todo: ${todoError.message}` });
-    }
-
-    // Create pomo entry
-    const pomoData = {
-      room_id: roomResult[0].room_id,
-      duration: 1500, // 25 minutes in seconds (standard Pomodoro)
-      status: "idle", // idle, running, paused, completed
-      created_at: new Date().toISOString()
-    };
-
-    const { data: pomoResult, error: pomoError } = await supabase
-      .from("pomos")
-      .insert([pomoData])
-      .select();
-
-    if (pomoError) {
-      console.error("Error creating pomo:", pomoError);
-      // Rollback todo if pomo fails
-      await supabase.from("todos").delete().eq("todo_id", todoResult[0].todo_id);
-      // Rollback room if pomo fails
-      await supabase.from("rooms").delete().eq("room_id", roomResult[0].room_id);
-      return res.status(500).json({ error: `Failed to create pomo: ${pomoError.message}` });
-    }
-
     res.status(201).json({
-      message: "Room created successfully with todo and pomo",
+      message: "Room created successfully",
       data: {
-        room: roomResult[0],
-        todo: todoResult[0],
-        pomo: pomoResult[0]
+        room: roomResult[0]
       }
     });
   } catch (err) {
@@ -97,8 +65,8 @@ router.post("/room", async (req: Request<{}, {}, CreateRoomRequest>, res: Respon
   }
 });
 
-// GET /rooms - Get all rooms
-router.get("/rooms", async (req: Request, res: Response) => {
+// GET /api/rooms - Get all rooms
+router.get("/", async (req: Request, res: Response) => {
   try {
     const { data, error } = await supabase
       .from("rooms")
@@ -117,8 +85,8 @@ router.get("/rooms", async (req: Request, res: Response) => {
   }
 });
 
-// GET /rooms/:roomId - Get a specific room
-router.get("/rooms/:roomId", async (req: Request, res: Response) => {
+// GET /api/rooms/:roomId - Get a specific room
+router.get("/:roomId", async (req: Request, res: Response) => {
   try {
     const { roomId } = req.params;
 
