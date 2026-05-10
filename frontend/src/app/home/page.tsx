@@ -75,7 +75,7 @@ export default function Home() {
       roomTitle: title
     }
 
-    const resp = await fetch("http://localhost:3001/api/rooms/room",
+    const resp = await fetch(`${process.env.FRONTEND_URL}/api/rooms/room`,
       {
         method: "POST",
         headers: {
