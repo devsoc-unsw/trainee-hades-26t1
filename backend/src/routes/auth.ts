@@ -6,22 +6,33 @@ const router: Router = Router();
 // Register
 router.post("/register", async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, name } = req.body; 
 
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
+    if (!email || !password || !name) { 
+      return res.status(400).json({ error: "Email, password and name are required" });
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password
-    });
+    const { data, error } = await supabase.auth.signUp({ email, password });
 
     if (error) {
       return res.status(400).json({ error: error.message });
     }
 
-    res.json(data);
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .insert({
+        id: data.user!.id,
+        name,
+        rooms: [],
+        currency: 0
+      });
+
+    if (profileError) {
+      return res.status(400).json({ error: profileError.message });
+    }
+
+    res.json(data); 
+
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });
   }
