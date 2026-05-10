@@ -51,7 +51,7 @@ const rooms = [
   },
 ];
 
-export default function Home() {
+export default function Rooms() {
   const [filter, setFilter] = useState("");
   const [filteredRooms, setFilteredRooms] = useState(rooms);
 
