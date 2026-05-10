@@ -5,6 +5,7 @@ import RoomCard from "@/components/RoomCard";
 import { useState } from "react";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { supabase } from '@/supabaseClient';
 
 //Mock Data for now
 const rooms = [
@@ -71,30 +72,43 @@ export default function Home() {
   }, []);
 
   const handleCreateRoom = async (title: string) => {
-    const newRoom = {
-      roomTitle: title
-    }
-
-    const resp = await fetch(`${process.env.FRONTEND_URL}/api/rooms/room`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(newRoom)
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+  
+      if (!token) {
+        alert("You must be logged in to create a room.");
+        return;
       }
-    );
-
-    if (!resp.ok) {
-      const errorData = await resp.json();
-      console.error("Error creating room:", errorData.error);
-      alert(`Failed to create room: ${errorData.error}`);
-      return;
+  
+      const newRoom = {
+        roomTitle: title
+      }
+  
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/room`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify(newRoom)
+        }
+      );
+  
+      if (!resp.ok) {
+        const errorData = await resp.json();
+        console.error("Error creating room:", errorData.error);
+        alert(`Failed to create room: ${errorData.error}`);
+        return;
+      }
+  
+      const data = await resp.json();
+      console.log("Room created successfully:", data);
+      alert("Room created successfully!");
+    } catch (error) {
+      console.error("Error creating room:", error);
     }
-
-    const data = await resp.json();
-    console.log("Room created successfully:", data);
-    alert(`Room "${title}" created successfully!`);
   }
 
   return (
