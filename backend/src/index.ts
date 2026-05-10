@@ -2,10 +2,11 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
-
+import cors from 'cors';
 import authRoutes from "./routes/auth.js";
 import testRoutes from "./routes/test.js";
-import { setupSocketHandlers } from "./sockets/handlers.js";
+import roomsRoutes from "./routes/rooms.js";
+import { setupSocketHandlers, todoHandler, roomHandler } from "./sockets/handlers.js";
 
 // Load environment variables
 dotenv.config();
@@ -16,6 +17,8 @@ const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
 // Initialize Express app
 const app = express();
+app.use(cors());
+
 const httpServer = createServer(app);
 
 // Initialize Socket.IO
@@ -32,9 +35,12 @@ app.use(express.json());
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/test", testRoutes);
+app.use("/api/rooms", roomsRoutes);
 
 // Socket.IO handlers
 setupSocketHandlers(io);
+todoHandler(io);
+roomHandler(io);
 
 // Start server
 httpServer.listen(PORT, () => {

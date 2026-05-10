@@ -4,6 +4,7 @@ import FilterBar from "@/components/FilterBar";
 import RoomCard from "@/components/RoomCard";
 import { useState } from "react";
 import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
 
 //Mock Data for now
 const rooms = [
@@ -69,11 +70,47 @@ export default function Home() {
     setFilter("");
   }, []);
 
+  const handleCreateRoom = async (title: string) => {
+    const newRoom = {
+      roomTitle: title
+    }
+
+    const resp = await fetch("http://localhost:3001/api/rooms/room",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(newRoom)
+      }
+    );
+
+    if (!resp.ok) {
+      const errorData = await resp.json();
+      console.error("Error creating room:", errorData.error);
+      alert(`Failed to create room: ${errorData.error}`);
+      return;
+    }
+
+    const data = await resp.json();
+    console.log("Room created successfully:", data);
+    alert(`Room "${title}" created successfully!`);
+  }
+
   return (
     <div className="pt-18 overflow-x-hidden">
       <Navbar />
       <main className="px-10 py-8">
-        <FilterBar value={filter} onChange={setFilter} />
+        <div className="flex justify-between items-center">
+          <FilterBar value={filter} onChange={setFilter} />
+          <Button 
+            variant="outline" 
+            className="text-(--dark-blue) hover:text-(--dark-blue) border-(--dark-blue) border-2"
+            onClick={() => handleCreateRoom("Backrooms!")}
+          >
+            Create New Room
+          </Button>
+        </div>
 
         <div className="grid grid-cols-3 gap-6 mt-8">
           {filteredRooms.map((room) => (
