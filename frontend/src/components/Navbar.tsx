@@ -16,21 +16,13 @@ export default function Navbar() {
       </span>
       <div className="flex gap-6 text-l">
         <Link
-          href="/"
+          href="/home"
           className={`${linkStyles} ${
-            activePath == "/" ? activeStyles : inactiveStyles
+            activePath == "/home" ? activeStyles : inactiveStyles
           }`}
+          onClick={() => setActivePath("/home")}
         >
           Home
-        </Link>
-        <Link
-          href="/rooms"
-          className={`${linkStyles} ${
-            activePath == "/rooms" ? activeStyles : inactiveStyles
-          }`}
-          onClick={() => setActivePath("/rooms")}
-        >
-          Rooms
         </Link>
         <Link
           href="/profile"
