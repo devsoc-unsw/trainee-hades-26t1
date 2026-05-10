@@ -3,31 +3,20 @@ import Image from "next/image";
 export default function Landing() {
   return (
     <div className="text-center mt-45">
-      <h1 className="text-7xl font-bold text-[var(--dark-blue)]" >
+      <h1 className="text-7xl font-bold text-[var(--dark-blue)]">
         {" "}
         StudyNook.
       </h1>
-      <p
-        className="font-mono font-bold text-shadow-lg text-2xl mt-3"
-        style={{ color: "var(--pastel-yellow)" }}
-      >
+      <p className="font-mono font-bold text-shadow-lg text-2xl mt-3 text-[var(--pastel-yellow)]">
         {" "}
         Do it Together.
       </p>
 
       <div className="flex justify-center gap-5 text-sm mt-10">
-        <button
-        className="font-bold font-mono pl-6 pr-6 p-3 border rounded-xl inline text-[var(--background)] bg-[var(--dark-blue)] border-[var(--dark-blue)]"
-        >
+        <button className="font-bold font-mono pl-6 pr-6 p-3 border rounded-xl inline text-[var(--background)] bg-[var(--dark-blue)] border-[var(--dark-blue)]">
           Get Started
         </button>
-        <button
-          className="font-mono pl-6 pr-6 p-3 border rounded-xl inline"
-          style={{
-            backgroundColor: "var(--background)",
-            borderColor: "var(--dark-blue)",
-          }}
-        >
+        <button className="font-mono px-6 p-3 border rounded-xl inline bg-[var(--background)] border-[var(--dark-blue)]">
           Learn More
         </button>
       </div>
