@@ -14,7 +14,7 @@ interface Room {
   createdBy: string;
 }
 
-export default function Rooms() {
+export default function Home() {
   const [filter, setFilter] = useState("");
   const [rooms, setRooms] = useState<Room[]>([]);
   const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
