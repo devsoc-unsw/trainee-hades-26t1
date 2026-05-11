@@ -40,8 +40,8 @@ export default function PomodoroTimer() {
       phase === "pomo"
         ? durations.pomo
         : phase === "short"
-          ? durations.short
-          : durations.long,
+        ? durations.short
+        : durations.long
     );
     setSeconds(0);
     setIsRunning(keepRunning);
@@ -89,10 +89,10 @@ export default function PomodoroTimer() {
   }, [isRunning, minutes, seconds, durations]);
 
   return (
-    <div className="relative w-full bg-(--light-blue) rounded-[30px] border-4 border-(--dark-blue) p-4 sm:p-6 lg:p-8 flex flex-col items-center justify-center gap-4 lg:gap-6">
-      {/* Settings */}
-      {showSettings && (
-        <div className="absolute inset-0 bg-(--light-blue) rounded-[30px] z-10 flex flex-col p-7 gap-4">
+    <div className="w-full bg-(--light-blue) rounded-[30px] border-4 border-(--dark-blue) p-4 sm:p-6 lg:p-8 flex flex-col items-center justify-center gap-4 lg:gap-6">
+      {showSettings ? (
+        /* Settings panel */
+        <div className="flex flex-col w-full gap-4">
           <div className="flex justify-between items-center">
             <h2 className="text-(--dark-blue) font-bold text-xl">Settings</h2>
             <button
@@ -109,8 +109,8 @@ export default function PomodoroTimer() {
                 {phase === "pomo"
                   ? "Pomodoro"
                   : phase === "short"
-                    ? "Short Break"
-                    : "Long Break"}
+                  ? "Short Break"
+                  : "Long Break"}
               </label>
               <input
                 type="number"
@@ -120,7 +120,7 @@ export default function PomodoroTimer() {
                 onChange={(e) => {
                   const val = Math.min(
                     200,
-                    Math.max(1, Number(e.target.value)),
+                    Math.max(1, Number(e.target.value))
                   );
                   setDraft((d) => ({ ...d, [phase]: val }));
                 }}
@@ -148,96 +148,100 @@ export default function PomodoroTimer() {
             </button>
           </div>
         </div>
+      ) : (
+        /* Timer display */
+        <>
+          {/* Toggle */}
+          <div className="flex w-full gap-2 text-white">
+            <button
+              onClick={() => {
+                setIsBreak(false);
+                setIsLongBreak(false);
+                setMinutes(durations.pomo);
+                setSeconds(0);
+                setIsRunning(false);
+              }}
+              className={`cursor-pointer flex-1 px-1 py-1 text-white transition hover:bg-(--dark-blue) ${
+                !isBreak && !isLongBreak
+                  ? "rounded-sm bg-(--dark-blue)"
+                  : "rounded-sm bg-(--dark-blue)/50"
+              }`}
+            >
+              Pomodoro
+            </button>
+            <button
+              onClick={() => {
+                setIsBreak(true);
+                setIsLongBreak(false);
+                setMinutes(durations.short);
+                setSeconds(0);
+                setIsRunning(false);
+              }}
+              className={`cursor-pointer flex-1 px-1 py-1 transition hover:bg-(--dark-blue) ${
+                isBreak
+                  ? "rounded-sm bg-(--dark-blue)"
+                  : "rounded-sm bg-(--dark-blue)/50"
+              }`}
+            >
+              Short Break
+            </button>
+            <button
+              onClick={() => {
+                setIsBreak(false);
+                setIsLongBreak(true);
+                setMinutes(durations.long);
+                setSeconds(0);
+                setIsRunning(false);
+              }}
+              className={`cursor-pointer flex-1 px-1 py-1 transition hover:bg-(--dark-blue) ${
+                isLongBreak
+                  ? "rounded-sm bg-(--dark-blue)"
+                  : "rounded-sm bg-(--dark-blue)/50"
+              }`}
+            >
+              Long Break
+            </button>
+          </div>
+
+          {/* Time */}
+          <p className="bg-white/75 rounded-md w-full text-center font-mono text-5xl lg:text-6xl 2xl:text-7xl text-(--dark-blue)">
+            {String(minutes).padStart(2, "0")}:
+            {String(seconds).padStart(2, "0")}
+          </p>
+
+          {/* Settings, Start, and Skip buttons */}
+          <div className="flex justify-between w-full text-white">
+            <button
+              onClick={handleOpenSettings}
+              className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer"
+            >
+              <Settings size={24} />
+            </button>
+
+            <button
+              onClick={() => setIsRunning((r) => !r)}
+              className={`w-35 rounded-[20px] px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-(--pastel-yellow) cursor-pointer transition-all duration-75 ${
+                isRunning
+                  ? "shadow-none translate-y-1"
+                  : "shadow-[0_4px_0_0_var(--dark-blue)]"
+              }`}
+            >
+              {isRunning ? "Pause" : "Start"}
+            </button>
+
+            {isRunning && getNextPhase(currentPhase) !== null ? (
+              <button
+                onClick={handleSkip}
+                className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer"
+              >
+                <SkipForward size={24} fill="var(--dark-blue)" />
+              </button>
+            ) : (
+              <div className="w-6" />
+            )}
+          </div>
+        </>
       )}
-
-      {/* Toggle */}
-      <div className="flex w-full gap-2 text-white">
-        <button
-          onClick={() => {
-            setIsBreak(false);
-            setIsLongBreak(false);
-            setMinutes(durations.pomo);
-            setSeconds(0);
-            setIsRunning(false);
-          }}
-          className={`cursor-pointer flex-1 px-1 py-1 text-white transition hover:bg-(--dark-blue) ${
-            !isBreak && !isLongBreak
-              ? "rounded-sm bg-(--dark-blue)"
-              : "rounded-sm bg-(--dark-blue)/50"
-          }`}
-        >
-          Pomodoro
-        </button>
-        <button
-          onClick={() => {
-            setIsBreak(true);
-            setIsLongBreak(false);
-            setMinutes(durations.short);
-            setSeconds(0);
-            setIsRunning(false);
-          }}
-          className={`cursor-pointer flex-1 px-1 py-1 transition hover:bg-(--dark-blue) ${
-            isBreak
-              ? "rounded-sm bg-(--dark-blue)"
-              : "rounded-sm bg-(--dark-blue)/50"
-          }`}
-        >
-          Short Break
-        </button>
-        <button
-          onClick={() => {
-            setIsBreak(false);
-            setIsLongBreak(true);
-            setMinutes(durations.long);
-            setSeconds(0);
-            setIsRunning(false);
-          }}
-          className={`cursor-pointer flex-1 px-1 py-1 transition hover:bg-(--dark-blue) ${
-            isLongBreak
-              ? "rounded-sm bg-(--dark-blue)"
-              : "rounded-sm bg-(--dark-blue)/50"
-          }`}
-        >
-          Long Break
-        </button>
-      </div>
-
-      {/* Timer display */}
-      <p className="bg-white/75 rounded-md w-full text-center font-mono text-6xl lg:text-7xl 2xl:text-8xl text-(--dark-blue)">
-        {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
-      </p>
-
-      {/* Settings, Start, and Skip buttons */}
-      <div className="flex justify-between w-full text-white">
-        <button
-          onClick={handleOpenSettings}
-          className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer"
-        >
-          <Settings size={24} />
-        </button>
-
-        <button
-          onClick={() => setIsRunning((r) => !r)}
-          className={`w-35 rounded-[20px] px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-(--pastel-yellow) cursor-pointer transition-all duration-75 ${
-            isRunning
-              ? "shadow-none translate-y-1"
-              : "shadow-[0_4px_0_0_var(--dark-blue)]"
-          }`}
-        >
-          {isRunning ? "Pause" : "Start"}
-        </button>
-
-        {isRunning && getNextPhase(currentPhase) !== null ? (
-          <button
-            onClick={handleSkip}
-            className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer"
-          >
-            <SkipForward size={24} fill="var(--dark-blue)" />
-          </button>
-        ) : (
-          <div className="w-6" />
-        )}
-      </div>
     </div>
   );
 }
