@@ -7,14 +7,14 @@ import { MapPin } from "lucide-react";
 type RoomCardProps = {
   id: number;
   name: string;
-  location: string;
+  location?: string;
   imageUrl?: string;
 };
 
 export default function RoomCard({
   id,
   name,
-  location,
+  location = "Unknown Location",
   imageUrl,
 }: RoomCardProps) {
   const [tooltip, setToolTip] = useState<{ x: number; y: number } | null>(null);
