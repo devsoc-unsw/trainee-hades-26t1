@@ -1,11 +1,12 @@
 import { Router, type Request, type Response } from "express";
-import { supabase } from "../config/supabase.js";
+import { createSupabaseClient } from "../config/supabase.js";
 
 const router: Router = Router();
 
 // Register
 router.post("/register", async (req: Request, res: Response) => {
   try {
+    const supabase = createSupabaseClient();
     const { email, password, name } = req.body; 
 
     if (!email || !password || !name) { 
@@ -30,6 +31,7 @@ router.post("/register", async (req: Request, res: Response) => {
 // Sign In
 router.post("/signin", async (req: Request, res: Response) => {
   try {
+    const supabase = createSupabaseClient();
     const { email, password } = req.body;
 
     if (!email || !password) {
