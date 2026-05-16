@@ -1,8 +1,24 @@
 import { Server, Socket } from "socket.io";
 import { createSupabaseClient } from "../config/supabase.js";
 
+interface PomodoroState {
+  id: string;
+  duration: number | null;
+  status: string | null;
+  mode: string | null;
+  endTime: number | null;
+  remainingTime: number | null;
+}
+
+interface TodoState {
+  id: string;
+  items: unknown;
+}
+
 interface RoomState {
   users: Set<string>;
+  pomodoroState: PomodoroState | null;
+  todoState: TodoState | null;
 }
 
 const roomStates = new Map<string, RoomState>();
@@ -22,11 +38,42 @@ async function getUserFromToken(token: string): Promise<string | null> {
   }
 }
 
-function getOrCreateRoom(roomId: string): RoomState {
-  if (!roomStates.has(roomId)) {
-    roomStates.set(roomId, { users: new Set() });
-  }
-  return roomStates.get(roomId)!;
+async function fetchRoomStateFromSupabase(
+  roomId: string,
+  token: string,
+): Promise<{
+  pomodoroState: PomodoroState | null;
+  todoState: TodoState | null;
+}> {
+  const client = createSupabaseClient(token);
+
+  const [pomosResult, todosResult] = await Promise.all([
+    client
+      .from("pomos")
+      .select("*")
+      .eq("room_id", roomId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(), // returns null if no rows (single() errors)
+    client.from("todos").select("*").eq("room_id", roomId).maybeSingle(),
+  ]);
+
+  const pomodoroState = pomosResult.data
+    ? {
+        id: pomosResult.data.id,
+        duration: pomosResult.data.duration,
+        status: pomosResult.data.status,
+        mode: pomosResult.data.mode,
+        endTime: pomosResult.data.end_time,
+        remainingTime: pomosResult.data.remaining_time,
+      }
+    : null;
+
+  const todoState = todosResult.data
+    ? { id: todosResult.data.id, items: todosResult.data.items }
+    : null;
+
+  return { pomodoroState, todoState };
 }
 
 export const setupSocketHandlers = (io: Server) => {
@@ -43,11 +90,25 @@ export const setupSocketHandlers = (io: Server) => {
       }
 
       socket.join(roomId);
-      const room = getOrCreateRoom(roomId);
+
+      // First user: Fetch from Supabase, else use memory.
+      let room = roomStates.get(roomId);
+      if (!room) {
+        const { pomodoroState, todoState } = await fetchRoomStateFromSupabase(
+          roomId,
+          token,
+        );
+        room = { users: new Set(), pomodoroState, todoState };
+        roomStates.set(roomId, room);
+      }
+
       room.users.add(userId);
       socketUsers.set(socket.id, { userId, roomId });
+
       socket.emit("room-state", {
         users: Array.from(room.users),
+        pomodoroState: room.pomodoroState,
+        todoState: room.todoState,
       });
 
       socket.to(roomId).emit("user-joined", { userId });
