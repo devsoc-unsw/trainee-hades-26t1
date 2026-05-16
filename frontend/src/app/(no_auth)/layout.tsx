@@ -1,7 +1,7 @@
 'use client';
 
 import { ReactNode } from "react";
-import { NoAuthProvider } from "@/components/no-auth-provider";
+import { NoAuthProvider } from "@/components/NoAuthProvider";
 
 type NoAuthLayoutProps = {
   children: ReactNode;
