@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ChangeEvent, SubmitEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useState } from "react";
 
+import { AuthFeedbackModal } from "@/components/auth-feedback-modal";
 import { AuthPageShell } from "@/components/AuthPageShell";
 
 const authFieldClassName =
@@ -15,17 +16,43 @@ export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [feedback, setFeedback] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    actionLabel: string;
+    variant: "success" | "error";
+  } | null>(null);
 
-  const handleRegister = async (e: SubmitEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
     if (!name || !email || !password) {
-      // TODO: show error message
-      console.error("All fields are required");
+      setFeedback({
+        open: true,
+        title: "Missing details",
+        description: "Name, email, and password are required to register.",
+        actionLabel: "Close",
+        variant: "error",
+      });
+      return;
+    }
+
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+    if (!backendUrl) {
+      setFeedback({
+        open: true,
+        title: "Configuration error",
+        description: "The backend URL is not configured in the frontend app.",
+        actionLabel: "Close",
+        variant: "error",
+      });
       return;
     }
 
     try {
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/register`, {
+      const response = await fetch(`${backendUrl}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -33,14 +60,33 @@ export default function Register() {
         body: JSON.stringify({ name, email, password }),
       });
 
-      if (!resp.ok) {
-        // TODO: show error message
-        console.error("Registration failed");
+      if (!response.ok) {
+        setFeedback({
+          open: true,
+          title: "Registration failed",
+          description:
+            "We couldn't create your account. Please check your details and try again.",
+          actionLabel: "Try again",
+          variant: "error",
+        });
         return;
       }
-    } catch (error) {
-      // TODO: show error message
-      console.error("An error occurred during registration", error);
+
+      setFeedback({
+        open: true,
+        title: "Account created",
+        description: "Your account was created successfully.",
+        actionLabel: "Continue",
+        variant: "success",
+      });
+    } catch {
+      setFeedback({
+        open: true,
+        title: "Network error",
+        description: "We couldn't reach the server. Please try again.",
+        actionLabel: "Close",
+        variant: "error",
+      });
     }
   };
 
@@ -59,6 +105,19 @@ export default function Register() {
         </p>
       }
     >
+      <AuthFeedbackModal
+        open={feedback?.open ?? false}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFeedback(null);
+          }
+        }}
+        title={feedback?.title ?? ""}
+        description={feedback?.description ?? ""}
+        actionLabel={feedback?.actionLabel ?? "Close"}
+        variant={feedback?.variant ?? "success"}
+      />
+
       <form onSubmit={handleRegister} className="space-y-4">
         <input
           type="name"

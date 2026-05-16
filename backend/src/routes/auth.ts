@@ -28,8 +28,8 @@ router.post("/register", async (req: Request, res: Response) => {
   }
 });
 
-// Sign In
-router.post("/signin", async (req: Request, res: Response) => {
+// Login
+router.post("/login", async (req: Request, res: Response) => {
   try {
     const supabase = createSupabaseClient();
     const { email, password } = req.body;

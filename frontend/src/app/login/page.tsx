@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ChangeEvent, SubmitEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useState } from "react";
 
+import { AuthFeedbackModal } from "@/components/auth-feedback-modal";
 import { AuthPageShell } from "@/components/AuthPageShell";
 
 const authFieldClassName =
@@ -14,17 +15,43 @@ const authPrimaryButtonClassName =
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [feedback, setFeedback] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    actionLabel: string;
+    variant: "success" | "error";
+  } | null>(null);
 
-  const handleLogin = async (e: SubmitEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
     if (!email || !password) {
-      // TODO: show error message
-      console.error("Email and password are required");
+      setFeedback({
+        open: true,
+        title: "Missing details",
+        description: "Email and password are required to sign in.",
+        actionLabel: "Close",
+        variant: "error",
+      });
+      return;
+    }
+
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+    if (!backendUrl) {
+      setFeedback({
+        open: true,
+        title: "Configuration error",
+        description: "The backend URL is not configured in the frontend app.",
+        actionLabel: "Close",
+        variant: "error",
+      });
       return;
     }
 
     try {
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/login`, {
+      const response = await fetch(`${backendUrl}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -32,14 +59,33 @@ export default function Login() {
         body: JSON.stringify({ email, password }),
       });
 
-      if (!resp.ok) {
-        // TODO: show error message
-        console.error("Login failed");
+      if (!response.ok) {
+        setFeedback({
+          open: true,
+          title: "Sign in failed",
+          description:
+            "We couldn't sign you in with those credentials. Check them and try again.",
+          actionLabel: "Try again",
+          variant: "error",
+        });
         return;
       }
-    } catch (error) {
-      // TODO: show error message
-      console.error("An error occurred during login", error);
+
+      setFeedback({
+        open: true,
+        title: "Welcome back",
+        description: "You have successfully signed in.",
+        actionLabel: "Continue",
+        variant: "success",
+      });
+    } catch {
+      setFeedback({
+        open: true,
+        title: "Network error",
+        description: "We couldn't reach the server. Please try again.",
+        actionLabel: "Close",
+        variant: "error",
+      });
     }
   };
 
@@ -58,6 +104,19 @@ export default function Login() {
         </p>
       }
     >
+      <AuthFeedbackModal
+        open={feedback?.open ?? false}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFeedback(null);
+          }
+        }}
+        title={feedback?.title ?? ""}
+        description={feedback?.description ?? ""}
+        actionLabel={feedback?.actionLabel ?? "Close"}
+        variant={feedback?.variant ?? "success"}
+      />
+
       <form onSubmit={handleLogin} className="space-y-4">
         <input
           type="email"
