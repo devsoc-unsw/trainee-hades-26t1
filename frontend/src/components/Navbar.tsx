@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/supabaseClient";
 
 export default function Navbar() {
   const [activePath, setActivePath] = useState("/");
@@ -10,6 +12,8 @@ export default function Navbar() {
   const linkStyles = "px-4 py-2 rounded-full transition-colors duration-200";
   const activeStyles = "bg-(--dark-blue) text-white hover:text-white/70";
   const inactiveStyles = "hover:text-(--dark-blue)/60";
+
+  const router = useRouter();
 
   const links = [
     { href: "/", label: "Home" },
@@ -36,6 +40,17 @@ export default function Navbar() {
               {label}
             </Link>
           ))}
+
+          {/* sign out button */}
+          <button
+          onClick={async () => {
+            await supabase.auth.signOut();
+            setActivePath("/")
+            router.push("/")
+          }}
+          className={`${linkStyles} ${inactiveStyles} cursor-pointer`}>
+            Sign Out
+          </button>
         </div>
 
         {/* Hamburger button */}
