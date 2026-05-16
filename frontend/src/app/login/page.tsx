@@ -1,22 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, SubmitEvent, useState } from "react";
 
 import { AuthPageShell } from "@/components/AuthPageShell";
 
 const authFieldClassName =
-  "h-12 sm:h-16 w-full rounded-md sm:rounded-lg bg-[#5F7B9340] px-4 sm:px-5 text-sm sm:text-sm outline-none placeholder:text-[#5f7b93]/70";
+  "h-10 sm:h-14 w-full rounded-md sm:rounded-lg bg-[#5F7B9340] px-4 sm:px-5 text-sm sm:text-sm outline-none placeholder:text-[#5f7b93]/70";
 
 const authPrimaryButtonClassName =
-  "h-12 sm:h-16 w-full rounded-md sm:rounded-lg bg-[var(--dark-blue)] text-sm sm:text-sm font-bold text-white transition-opacity hover:opacity-90";
+  "h-10 sm:h-14 w-full rounded-md sm:rounded-lg bg-[var(--dark-blue)] text-sm sm:text-sm font-bold text-white transition-opacity hover:opacity-90";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleSubmit = () => {
-    // event.preventDefault();
+  const handleLogin = async (e: SubmitEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!email || !password) {
+      // TODO: show error message
+      console.error("Email and password are required");
+      return;
+    }
+
+    try {
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!resp.ok) {
+        // TODO: show error message
+        console.error("Login failed");
+        return;
+      }
+    } catch (error) {
+      // TODO: show error message
+      console.error("An error occurred during login", error);
+    }
   };
 
   return (
@@ -34,7 +58,7 @@ export default function Login() {
         </p>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleLogin} className="space-y-4">
         <input
           type="email"
           placeholder="Email"

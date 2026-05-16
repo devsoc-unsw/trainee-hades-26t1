@@ -31,7 +31,7 @@ export function AuthPageShell({
   children,
 }: AuthPageShellProps) {
   return (
-    <main className="min-h-screen bg-[var(--light-blue)] px-4 py-6 sm:px-5 md:px-8 tracking-[0.08em] overflow-y-hidden">
+    <main className="h-screen bg-[var(--light-blue)] px-4 py-6 sm:px-5 md:px-8 tracking-[0.08em] overflow-y-hidden">
       <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-6/7 max-w-7xl items-center gap-8 lg:grid-cols-2 px-0">
         <div className="relative hidden h-full w-full items-center justify-center lg:flex">
           <div className="w-full max-w-md overflow-hidden rounded-3xl border-4 border-[#FFFCD6] bg-[#FFFCD6] aspect-square">
@@ -70,7 +70,7 @@ export function AuthPageShell({
 
           <p className="text-lg sm:text-xl text-[var(--dark-blue)] mb-5">{subtitle}</p>
             {children}
-          <div className="mt-8 text-center text-base sm:text-lg text-[var(--dark-blue)]">
+          <div className="mt-8 text-center text-base text-md text-[var(--dark-blue)]">
             {footer}
           </div>
         </section>

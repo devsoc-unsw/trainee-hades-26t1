@@ -1,23 +1,47 @@
 "use client";
 
 import Link from "next/link";
-import { ChangeEvent, FormEvent, useState } from "react";
+import { ChangeEvent, SubmitEvent, useState } from "react";
 
 import { AuthPageShell } from "@/components/AuthPageShell";
 
 const authFieldClassName =
-  "h-12 sm:h-16 w-full rounded-md sm:rounded-lg bg-[#5F7B9340] px-4 sm:px-5 text-sm sm:text-sm outline-none placeholder:text-[#5f7b93]/70";
+  "h-10 sm:h-14 w-full rounded-md sm:rounded-lg bg-[#5F7B9340] px-4 sm:px-5 text-sm sm:text-sm outline-none placeholder:text-[#5f7b93]/70";
 
 const authPrimaryButtonClassName =
-  "h-12 sm:h-16 w-full rounded-md sm:rounded-lg bg-[var(--dark-blue)] text-sm sm:text-sm font-bold text-white transition-opacity hover:opacity-90";
+  "h-10 sm:h-14 w-full rounded-md sm:rounded-lg bg-[var(--dark-blue)] text-sm sm:text-sm font-bold text-white transition-opacity hover:opacity-90";
 
 export default function Register() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [school, setSchool] = useState("");
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleRegister = async (e: SubmitEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!name || !email || !password) {
+      // TODO: show error message
+      console.error("All fields are required");
+      return;
+    }
+
+    try {
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      if (!resp.ok) {
+        // TODO: show error message
+        console.error("Registration failed");
+        return;
+      }
+    } catch (error) {
+      // TODO: show error message
+      console.error("An error occurred during registration", error);
+    }
   };
 
   return (
@@ -35,7 +59,18 @@ export default function Register() {
         </p>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleRegister} className="space-y-4">
+        <input
+          type="name"
+          placeholder="Name"
+          value={name}
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+            setName(e.target.value)
+          }
+          className={authFieldClassName}
+          required
+        />
+
         <input
           type="email"
           placeholder="Email"
