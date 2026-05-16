@@ -4,6 +4,7 @@ import { Pixelify_Sans, Poppins } from 'next/font/google';
 import { JSX } from "react/jsx-runtime";
 import { useRouter } from "next/navigation";
 import router from "next/router";
+import Link from "next/link";
 
 const pixelify = Pixelify_Sans({
   subsets: ["latin"],
@@ -52,7 +53,7 @@ export default function Register() {
       </div>
 
       {/* RIGHT */}
-      <div className="w-[554px] shrink-0 text-[20px]">
+      <div className="w-[34rem] shrink-0 text-[20px]">
 
         {/* Decorations */}
         <div className="relative mb-6 h-[120px]">
@@ -113,16 +114,9 @@ export default function Register() {
 
         <div className="text-center text-[18px] text-[var(--dark-blue)]">
           Have an account?{" "}
-          <a
-            href="#"
-            className="font-bold underline"
-            onClick={(e) => {
-              e.preventDefault();
-              router.push("/login");
-            }}
-          >
+          <Link href="/login" className="font-bold underline">
             Log in here
-          </a>
+          </Link>
         </div>
       </div>
     </div>

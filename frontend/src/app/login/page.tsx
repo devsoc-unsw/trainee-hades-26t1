@@ -3,6 +3,7 @@ import { useState, FormEvent, ChangeEvent } from "react";
 import { Pixelify_Sans, Poppins } from 'next/font/google';
 import { JSX } from "react/jsx-runtime";
 import { useRouter } from 'next/navigation';
+import Link from "next/link";
 
 const pixelify = Pixelify_Sans({
   subsets: ["latin"],
@@ -62,11 +63,11 @@ export default function Login(): JSX.Element {
             />
           </div>
 
-          <h1 className={`${pixelify.className} mb-4 text-[96px] font-black text-[var(--dark-blue)] tracking-[0.08em]`}>
+          <h1 className={`${pixelify.className} mb-4 text-7xl font-black text-[var(--dark-blue)] tracking-[0.08em]`}>
             Sign In !!!
           </h1>
 
-          <p className="mb-10 text-[20px] text-[var(--dark-blue)]">
+          <p className="mb-10 text-xl text-[var(--dark-blue)]">
             Welcome back :D
           </p>
 
@@ -96,7 +97,7 @@ export default function Login(): JSX.Element {
 
             <a
               type="button"
-              className="text-[18px] font-semibold text-[#627a94] "
+              className="text-[18px] font-semibold text-[#627a94]"
             >
               Forgot Password?
             </a>
@@ -111,14 +112,9 @@ export default function Login(): JSX.Element {
 
           <p className="mt-14 text-center text-[18px] text-[var(--dark-blue)]">
             Don’t have an account?{" "}
-            <a href="#" className="font-bold underline"
-            onClick={(e) => {
-              e.preventDefault()
-              route.push('/register')
-            }}
-            >
+            <Link href="/register" className="font-bold underline">
               Register
-            </a>
+            </Link>
           </p>
         </div>
       </div>
