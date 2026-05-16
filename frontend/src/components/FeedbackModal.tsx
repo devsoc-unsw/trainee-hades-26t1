@@ -13,35 +13,35 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type AuthFeedbackVariant = "success" | "error";
+type FeedbackVariant = "success" | "error";
 
-type AuthFeedbackModalProps = {
+type FeedbackModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   description: string;
   actionLabel: string;
-  variant?: AuthFeedbackVariant;
+  variant?: FeedbackVariant;
 };
 
-const variantStyles: Record<AuthFeedbackVariant, string> = {
+const variantStyles: Record<FeedbackVariant, string> = {
   success: "bg-emerald-100 text-emerald-700",
   error: "bg-rose-100 text-rose-700",
 };
 
-const variantIcons: Record<AuthFeedbackVariant, typeof CheckCircle2> = {
+const variantIcons: Record<FeedbackVariant, typeof CheckCircle2> = {
   success: CheckCircle2,
   error: AlertCircle,
 };
 
-export function AuthFeedbackModal({
+export function FeedbackModal({
   open,
   onOpenChange,
   title,
   description,
   actionLabel,
   variant = "success",
-}: AuthFeedbackModalProps) {
+}: FeedbackModalProps) {
   const Icon = variantIcons[variant];
 
   return (

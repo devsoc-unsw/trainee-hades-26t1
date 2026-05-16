@@ -107,33 +107,6 @@ export default function Home() {
     }
   }
 
-  // const handleLogin = async () => {
-  //   try {
-  //     const email = "chud@mail.com";
-  //     const password = "chuddychudchud";
-        
-  //     const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/signin`, {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json"
-  //       },
-  //       body: JSON.stringify({ email, password })
-  //     });
-  
-  //     if (!resp.ok) {
-  //       const errorData = await resp.json();
-  //       console.error("Login error:", errorData.error);
-  //       alert(`Login failed: ${errorData.error}`);
-  //       return;
-  //     }
-  
-  //     const data = await resp.json();
-  //     console.log("Login successful:", data);
-  //   } catch (error) {
-  //     console.error("Error during login:", error);
-  //   }
-  // }
-
   useEffect(() => {
     handleGetRooms();
   }, []);
@@ -151,9 +124,6 @@ export default function Home() {
           >
             + New Room
           </Button>
-          {/* <Button onClick={() => handleLogin()}>
-            Login (temporary)
-          </Button> */}
         </div>
 
         <div className="grid grid-cols-3 gap-6 mt-8">
@@ -162,8 +132,6 @@ export default function Home() {
               id={room.id}
               key={room.id}
               name={room.roomTitle}
-              // location={}
-              // imageUrl={}
             />
           ))}
         </div>

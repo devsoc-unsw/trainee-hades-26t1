@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChangeEvent, FormEvent, useState } from "react";
 
-import { AuthFeedbackModal } from "@/components/auth-feedback-modal";
+import { FeedbackModal } from "@/components/FeedbackModal";
 import { AuthPageShell } from "@/components/AuthPageShell";
+import { supabase } from "@/supabaseClient";
 
 const authFieldClassName =
   "h-10 sm:h-14 w-full rounded-md sm:rounded-lg bg-[#5F7B9340] px-4 sm:px-5 text-sm sm:text-sm outline-none placeholder:text-[#5f7b93]/70";
@@ -13,6 +15,7 @@ const authPrimaryButtonClassName =
   "h-10 sm:h-14 w-full rounded-md sm:rounded-lg bg-[var(--dark-blue)] text-sm sm:text-sm font-bold text-white transition-opacity hover:opacity-90";
 
 export default function Login() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [feedback, setFeedback] = useState<{
@@ -71,13 +74,38 @@ export default function Login() {
         return;
       }
 
+      const data = await response.json();
+      const { session } = data;
+
+      if (!session || !session.access_token) {
+        setFeedback({
+          open: true,
+          title: "Session error",
+          description: "Failed to establish a session. Please try again.",
+          actionLabel: "Close",
+          variant: "error",
+        });
+        return;
+      }
+
+      // Set the session in Supabase client
+      await supabase.auth.setSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      });
+
       setFeedback({
         open: true,
         title: "Welcome back",
-        description: "You have successfully signed in.",
+        description: "You have successfully signed in. Redirecting...",
         actionLabel: "Continue",
         variant: "success",
       });
+
+      // Redirect to home after a short delay
+      setTimeout(() => {
+        router.push("/home");
+      }, 1000);
     } catch {
       setFeedback({
         open: true,
@@ -104,7 +132,7 @@ export default function Login() {
         </p>
       }
     >
-      <AuthFeedbackModal
+      <FeedbackModal
         open={feedback?.open ?? false}
         onOpenChange={(open) => {
           if (!open) {
