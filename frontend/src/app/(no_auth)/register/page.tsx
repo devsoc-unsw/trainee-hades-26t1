@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChangeEvent, FormEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 
 import { FeedbackModal } from "@/components/FeedbackModal";
 import { AuthPageShell } from "@/components/AuthPageShell";
@@ -14,8 +14,9 @@ const authFieldClassName =
 const authPrimaryButtonClassName =
   "h-10 sm:h-14 w-full rounded-md sm:rounded-lg bg-[var(--dark-blue)] text-sm sm:text-sm font-bold text-white transition-opacity hover:opacity-90";
 
-export default function Login() {
+export default function Register() {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [feedback, setFeedback] = useState<{
@@ -26,14 +27,14 @@ export default function Login() {
     variant: "success" | "error";
   } | null>(null);
 
-  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
+  const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!email || !password) {
+    if (!name || !email || !password) {
       setFeedback({
         open: true,
         title: "Missing details",
-        description: "Email and password are required to sign in.",
+        description: "Name, email, and password are required to register.",
         actionLabel: "Close",
         variant: "error",
       });
@@ -54,20 +55,20 @@ export default function Login() {
     }
 
     try {
-      const response = await fetch(`${backendUrl}/api/auth/login`, {
+      const response = await fetch(`${backendUrl}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ name, email, password }),
       });
 
       if (!response.ok) {
         setFeedback({
           open: true,
-          title: "Sign in failed",
+          title: "Registration failed",
           description:
-            "We couldn't sign you in with those credentials. Check them and try again.",
+            "We couldn't create your account. Please check your details and try again.",
           actionLabel: "Try again",
           variant: "error",
         });
@@ -96,8 +97,8 @@ export default function Login() {
 
       setFeedback({
         open: true,
-        title: "Welcome back",
-        description: "You have successfully signed in. Redirecting...",
+        title: "Account created",
+        description: "Your account was created successfully. Redirecting...",
         actionLabel: "Continue",
         variant: "success",
       });
@@ -119,15 +120,15 @@ export default function Login() {
 
   return (
     <AuthPageShell
-      title="Sign In !!!"
-      subtitle="Welcome back :D"
-      imageSrc="/login-left.jpg"
+      title="Register"
+      subtitle="Welcome to the club :)"
+      imageSrc="/9a1762f5a9668b3a87bb6b6f828eb28a8e10882c.jpg"
       imageAlt="pixel room"
       footer={
         <p>
-          Don’t have an account?{" "}
-          <Link href="/register" className="font-bold underline">
-            Register
+          Have an account?{" "}
+          <Link href="/login" className="font-bold underline">
+            Log in here
           </Link>
         </p>
       }
@@ -145,7 +146,18 @@ export default function Login() {
         variant={feedback?.variant ?? "success"}
       />
 
-      <form onSubmit={handleLogin} className="space-y-4">
+      <form onSubmit={handleRegister} className="space-y-4">
+        <input
+          type="name"
+          placeholder="Name"
+          value={name}
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+            setName(e.target.value)
+          }
+          className={authFieldClassName}
+          required
+        />
+
         <input
           type="email"
           placeholder="Email"
@@ -167,18 +179,11 @@ export default function Login() {
           className={authFieldClassName}
           required
         />
-
-        <button
-          type="button"
-          className="text-left text-sm font-semibold text-[#627a94]"
-        >
-          Forgot Password?
-        </button>
-
         <button type="submit" className={authPrimaryButtonClassName}>
-          Sign in
+          Create Account
         </button>
       </form>
     </AuthPageShell>
   );
 }
+
