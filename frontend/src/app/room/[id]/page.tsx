@@ -8,6 +8,7 @@ import { PencilLine, Check } from "lucide-react";
 import { useState } from "react";
 
 export default function Room() {
+  // Room page
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState("COMP6080 Chapel");
 
