@@ -43,21 +43,21 @@ export default function Landing() {
           alt=""
           width={300}
           height={200}
-          className="w-[15vw] max-w-[10rem] absolute top-[5em] left-[10em] object-contain"
+          className="w-[15vw] max-w-40 absolute top-[5em] left-[10em] object-contain"
         />
         <Image
           src="/assets/cloud1.jpg"
           alt=""
           width={300}
           height={200}
-          className="w-[15vw] max-w-[10rem] absolute top-[15em] right-[15em] object-contain"
+          className="w-[15vw] max-w-40 absolute top-[15em] right-[15em] object-contain"
         />
         <Image
           src="/assets/stars.png"
           alt=""
           width={300}
           height={200}
-          className="w-[15vw] max-w-[10rem] absolute top-[7vh] right-[30vw] object-contain"
+          className="w-[15vw] max-w-40 absolute top-[7vh] right-[30vw] object-contain"
         />
       </div>
       <div className="flex justify-between items-end px-[10vw] mt-12 relative z-10">
@@ -66,21 +66,21 @@ export default function Landing() {
           alt="Window 1"
           width={300}
           height={200}
-          className="w-[18vw] max-w-[13rem] object-contain"
+          className="w-[18vw] max-w-52 object-contain"
         />
         <Image
           src="/assets/window2.PNG"
           alt="Window 2"
           width={300}
           height={200}
-          className="w-[18vw] max-w-[13rem] object-contain"
+          className="w-[18vw] max-w-52 object-contain"
         />
         <Image
           src="/assets/window3.jpg"
           alt="Window 3"
           width={300}
           height={200}
-          className="w-[18vw] max-w-[13rem] object-contain"
+          className="w-[18vw] max-w-52 object-contain"
         />
       </div>
     </div>

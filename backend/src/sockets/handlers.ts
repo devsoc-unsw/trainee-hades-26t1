@@ -15,3 +15,13 @@ export const setupSocketHandlers = (io: Server) => {
     // });
   });
 };
+
+
+export const todoHandler = (io: Server) => {
+  // todo-related events
+};
+
+export const roomHandler = (io: Server) => {
+  // join-room
+};
+
