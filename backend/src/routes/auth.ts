@@ -53,4 +53,19 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
+router.post("/logout", async (req: Request, res: Response) => {
+  try {
+    const supabase = createSupabaseClient();
+    const { error } = await supabase.auth.signOut();
+    
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json({ message: "Logged out successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
