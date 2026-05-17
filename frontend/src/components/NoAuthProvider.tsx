@@ -19,7 +19,7 @@ export function NoAuthProvider({ children }: NoAuthProviderProps) {
       } = await supabase.auth.getSession();
 
       if (session) {
-        router.push("/home");
+        router.push("/rooms");
       } else {
         setIsChecking(false);
       }
