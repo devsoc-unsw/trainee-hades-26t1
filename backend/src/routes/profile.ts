@@ -81,4 +81,32 @@ router.put("/", supabaseAuth, async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/profile/:userId - Get another user's profile by ID
+router.get("/:userId", supabaseAuth, async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const supabaseClient = req.supabaseClient;
+
+    if (!supabaseClient) {
+      return res.status(500).json({ error: "Supabase client not initialized" });
+    }
+
+    const { data, error } = await supabaseClient
+      .from("profiles")
+      .select("id, name")
+      .eq("id", userId)
+      .single();
+
+    if (error) {
+      console.error("Supabase error:", error);
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;

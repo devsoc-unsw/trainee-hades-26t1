@@ -5,11 +5,89 @@ import Navbar from "@/components/Navbar";
 import PomodoroTimer from "@/components/PomodoroTimer";
 import TodoList from "@/components/TodoList";
 import { PencilLine, Check } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { type Room } from "@/lib/types";
+import { supabase } from "@/supabaseClient";
+import { useParams } from "next/navigation";
+import { toast } from "sonner";
 
 export default function Room() {
   const [isEditing, setIsEditing] = useState(false);
-  const [title, setTitle] = useState("COMP6080 Chapel");
+  const [data, setData] = useState<Room | null>(null);
+  const [createdBy, setCreatedBy] = useState<string | null>(null);
+
+  const roomId = String(useParams().id);
+
+  const getRoomData = async (roomId: string) => {
+    // Fetch room data from backend using roomId
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error("User not authenticated");
+      }
+
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      if (!resp.ok) {
+        throw new Error("Failed to fetch room data");
+      }
+      const data = await resp.json();
+      setData(data);
+
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unknown error");
+    }
+  }
+
+  const getUserProfile = async (userId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error("User not authenticated");
+      }
+
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile/${userId}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!resp.ok) {
+        throw new Error("Failed to fetch user profile");
+      }
+
+      const profileData = await resp.json();
+      return profileData;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unknown error");
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    getRoomData(roomId);
+  }, [roomId]);
+
+  useEffect(() => {
+    if (data?.createdBy) {
+      getUserProfile(data.createdBy).then((profile) => {
+        if (profile) {
+          setCreatedBy(profile.name);
+        }
+      });
+    }
+  }, [data?.createdBy]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -22,14 +100,14 @@ export default function Room() {
             {isEditing ? (
               <input
                 autoFocus
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                value={data?.roomTitle || ""}
+                // onChange={(e) => setData({ ...data, roomTitle: e.target.value })}
                 maxLength={30}
                 onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
                 className="bg-transparent border-b border-white/50 outline-none w-full"
               />
             ) : (
-              <span>{title}</span>
+              <span>{data?.roomTitle}</span>
             )}
 
             {isEditing ? (
@@ -53,7 +131,7 @@ export default function Room() {
               The room description goes in here.
             </div>
             <div className="bg-(--pastel-yellow) border-2 border-(--dark-blue) rounded-xl p-2">
-              Created by: <span className="font-semibold">SleepyJen</span>
+              Created by: <span className="font-semibold">{createdBy || "Unknown"}</span>
             </div>
           </div>
 

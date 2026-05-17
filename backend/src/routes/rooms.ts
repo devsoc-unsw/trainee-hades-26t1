@@ -92,7 +92,7 @@ router.get("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
     const { data, error } = await supabaseClient
       .from("rooms")
       .select("id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at")
-      .eq("room_id", roomId)
+      .eq("id", roomId)
       .single();
 
     if (error) {

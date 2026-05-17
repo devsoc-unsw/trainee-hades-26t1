@@ -19,6 +19,7 @@ import { pixelify, poppins } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 import { FeedbackModal } from "@/components/FeedbackModal";
 import { getSocket } from "@/lib/socket";
+import { Feedback } from "@/lib/types";
 
 
 interface Room {
@@ -38,13 +39,7 @@ export default function Rooms() {
   const [newRoomTitle, setNewRoomTitle] = useState("");
   const [newRoomDescription, setNewRoomDescription] = useState("");
   const [newRoomLocation, setNewRoomLocation] = useState("");
-  const [feedback, setFeedback] = useState<{
-    open: boolean;
-    title: string;
-    description: string;
-    actionLabel: string;
-    variant: "success" | "error";
-  } | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -64,6 +59,8 @@ export default function Rooms() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
+
+      console.log(`UserId: ${session?.user.id}`);
 
       if (!token) {
         setFeedback({
@@ -255,6 +252,38 @@ export default function Rooms() {
     }
   }
 
+  // const handleLogout = async () => {
+  //   try {
+  //     const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/logout`, {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //       },
+  //     });
+
+  //     if (!resp.ok) {
+  //       const errorData = await resp.json();
+  //       throw new Error(errorData.error || "Failed to log out");
+  //     }
+
+  //     // Clear the session on the frontend
+  //     await supabase.auth.signOut();
+
+  //     // Redirect to login page
+  //     router.push("/login");
+
+  //   } catch (error) {
+  //     console.error("Error logging out:", error);
+  //     setFeedback({
+  //       open: true,
+  //       title: "Failed to log out",
+  //       description: "An unknown error occurred while logging out.",
+  //       actionLabel: "Close",
+  //       variant: "error",
+  //     });
+  //   }
+  // }
+
   useEffect(() => {
     handleGetRooms();
   }, []);
@@ -262,6 +291,7 @@ export default function Rooms() {
   return (
     <div className="pt-18 overflow-x-hidden">
       <Navbar />
+      {/* <Button onClick={handleLogout}>Logout temp</Button> */}
       <main className="px-10 py-8">
         <div className="flex justify-between items-center">
           <FilterBar value={filter} onChange={setFilter} />
