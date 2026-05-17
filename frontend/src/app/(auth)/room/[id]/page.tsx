@@ -11,6 +11,7 @@ import { supabase } from "@/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getSocket } from "@/lib/socket";
+import { Button } from "@/components/ui/button";
 
 export default function Room() {
   const [isEditing, setIsEditing] = useState(false);
@@ -171,24 +172,24 @@ export default function Room() {
       <main className="flex flex-col xl:flex-row min-h-[calc(100vh-64px)] mt-16">
         {/* Room Content */}
         <div className="w-full xl:w-2/3 flex flex-col items-start p-8 gap-8">
-          {/* Room Title */}
-          <div className="w-full bg-(--dark-blue) text-white font-mono text-2xl tracking-widest px-8 py-5 rounded-xl flex items-center justify-between">
-            {isEditing ? (
-              <input
-                autoFocus
-                value={data?.roomTitle || ""}
-                onChange={(e) => {
-                  setData(prev => prev ? { ...prev, roomTitle: e.target.value } : prev)
-                }}
-                maxLength={30}
-                onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
-                className="bg-transparent border-b border-white/50 outline-none w-full"
-              />
-            ) : (
-              <span>{data?.roomTitle}</span>
-            )}
+          <div className="w-full flex items-center gap-2 text-2xl">
+            {/* Room Title */}
+            <div className="w-full bg-(--dark-blue) text-white font-mono text-2xl tracking-widest px-8 py-5 rounded-xl flex items-center justify-between">
+              {isEditing ? (
+                <input
+                  autoFocus
+                  value={data?.roomTitle || ""}
+                  onChange={(e) => {
+                    setData(prev => prev ? { ...prev, roomTitle: e.target.value } : prev)
+                  }}
+                  maxLength={30}
+                  onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
+                  className="bg-transparent border-b border-white/50 outline-none w-full"
+                />
+              ) : (
+                <span>{data?.roomTitle}</span>
+              )}
 
-            <div className="flex items-center gap-3">
               {isEditing ? (
                 <Check
                   size={24}
@@ -202,12 +203,12 @@ export default function Room() {
                   onClick={() => setIsEditing(true)}
                 />
               )}
+            </div>
+            <Button onClick={handleLeaveRoom} variant="outline" className="flex items-center min-w-16 h-full text-3xl cursor-pointer">
               <LogOut
                 size={24}
-                className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete"
-                onClick={handleLeaveRoom}
               />
-            </div>
+            </Button>
           </div>
 
           {/* Author and Room Description */}
