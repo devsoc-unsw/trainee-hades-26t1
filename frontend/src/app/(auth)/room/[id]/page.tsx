@@ -4,19 +4,22 @@ import Image from "next/image";
 import Navbar from "@/components/Navbar";
 import PomodoroTimer from "@/components/PomodoroTimer";
 import TodoList from "@/components/TodoList";
-import { PencilLine, Check } from "lucide-react";
+import { PencilLine, Check, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { type Room } from "@/lib/types";
 import { supabase } from "@/supabaseClient";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { getSocket } from "@/lib/socket";
 
 export default function Room() {
   const [isEditing, setIsEditing] = useState(false);
   const [data, setData] = useState<Room | null>(null);
   const [createdBy, setCreatedBy] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const roomId = String(useParams().id);
+  const router = useRouter();
 
   const getRoomData = async (roomId: string) => {
     // Fetch room data from backend using roomId
@@ -75,7 +78,7 @@ export default function Room() {
     }
   };
 
-  const updateRoomData = async (updatedData: Partial<Room>) => {
+  const updateRoomData = async (updatedData: Room) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
@@ -101,7 +104,44 @@ export default function Room() {
       const updatedRoom = await resp.json();
       setData(updatedRoom);
     } catch (error) {
+      console.error("Update room data error:", error);
       toast.error(error instanceof Error ? error.message : "Unknown error");
+    }
+  };
+
+  const handleLeaveRoom = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const currentUserId = session?.user.id;
+
+      if (!token || !currentUserId) {
+        throw new Error("User not authenticated");
+      }
+
+      // Emit leave-room event via socket
+      const socket = getSocket();
+      socket.emit("leave-room", { roomId, userId: currentUserId });
+
+      // Clear the user's room field in profile
+      const clearRoomResp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ room: null }),
+      });
+
+      if (!clearRoomResp.ok) {
+        const errorResp = await clearRoomResp.json();
+        throw new Error(errorResp.error || "Failed to leave room");
+      }
+
+      toast.success("Left room successfully");
+      router.push("/rooms");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to leave room");
     }
   };
 
@@ -120,8 +160,8 @@ export default function Room() {
   }, [data?.createdBy]);
 
   useEffect(() => {
-    if (!isEditing) {
-      updateRoomData({ roomTitle: data?.roomTitle || "" });
+    if (!isEditing && data) {
+      updateRoomData({ ...data });
     }
   }, [isEditing]);
 
@@ -137,7 +177,9 @@ export default function Room() {
               <input
                 autoFocus
                 value={data?.roomTitle || ""}
-                onChange={(e) => setData(prev => prev ? { ...prev, roomTitle: e.target.value } : prev)}
+                onChange={(e) => {
+                  setData(prev => prev ? { ...prev, roomTitle: e.target.value } : prev)
+                }}
                 maxLength={30}
                 onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
                 className="bg-transparent border-b border-white/50 outline-none w-full"
@@ -146,19 +188,26 @@ export default function Room() {
               <span>{data?.roomTitle}</span>
             )}
 
-            {isEditing ? (
-              <Check
+            <div className="flex items-center gap-3">
+              {isEditing ? (
+                <Check
+                  size={24}
+                  className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete"
+                  onClick={() => setIsEditing(false)}
+                />
+              ) : (
+                <PencilLine
+                  size={24}
+                  className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete"
+                  onClick={() => setIsEditing(true)}
+                />
+              )}
+              <LogOut
                 size={24}
                 className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete"
-                onClick={() => setIsEditing(false)}
+                onClick={handleLeaveRoom}
               />
-            ) : (
-              <PencilLine
-                size={24}
-                className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete"
-                onClick={() => setIsEditing(true)}
-              />
-            )}
+            </div>
           </div>
 
           {/* Author and Room Description */}
