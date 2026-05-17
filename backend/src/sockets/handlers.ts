@@ -76,7 +76,7 @@ async function fetchRoomStateFromSupabase(
   return { pomodoroState, todoState };
 }
 
-export const setupSocketHandlers = (io: Server) => {
+export const roomHandler = (io: Server) => {
   io.on("connection", (socket: Socket) => {
     console.log(`User connected: ${socket.id}`);
 
@@ -190,6 +190,3 @@ export const todoHandler = (io: Server) => {
   // todo-related events
 };
 
-export const roomHandler = (io: Server) => {
-  // join-room
-};
