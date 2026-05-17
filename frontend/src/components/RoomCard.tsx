@@ -9,6 +9,7 @@ type RoomCardProps = {
   name: string;
   location?: string;
   imageUrl?: string;
+  onClick?: () => Promise<void>;
 };
 
 export default function RoomCard({
@@ -16,11 +17,13 @@ export default function RoomCard({
   name,
   location = "Unknown Location",
   imageUrl,
+  onClick,
 }: RoomCardProps) {
   const [tooltip, setToolTip] = useState<{ x: number; y: number } | null>(null);
 
   return (
     <div
+      onClick={onClick}
       className="relative"
       onMouseMove={(e) => {
         {

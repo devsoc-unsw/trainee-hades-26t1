@@ -4,6 +4,7 @@ import FilterBar from "@/components/FilterBar";
 import RoomCard from "@/components/RoomCard";
 import { useState } from "react";
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,6 +18,7 @@ import { supabase } from '@/supabaseClient';
 import { pixelify, poppins } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 import { FeedbackModal } from "@/components/FeedbackModal";
+import { getSocket } from "@/lib/socket";
 
 
 interface Room {
@@ -43,6 +45,7 @@ export default function Rooms() {
     actionLabel: string;
     variant: "success" | "error";
   } | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     setFilteredRooms(
@@ -184,6 +187,74 @@ export default function Rooms() {
     }
   }
 
+  const handleJoinRoom = async (roomId: number) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        setFeedback({
+          open: true,
+          title: "Authentication required",
+          description: "You must be logged in to join a room.",
+          actionLabel: "Close",
+          variant: "error",
+        });
+        return;
+      }
+
+      const socket = getSocket();
+
+      // Emit join-room event with roomId and token
+      socket.emit("join-room", { roomId: String(roomId), token });
+
+      // Listen for room-state event (successful join)
+      socket.once("room-state", (data) => {
+        console.log("Successfully joined room:", data);
+        setFeedback({
+          open: true,
+          title: "Room joined successfully",
+          description: "Navigating to the room...",
+          actionLabel: "Close",
+          variant: "success",
+        });
+        // Navigate to the room page
+        router.push(`/room/${roomId}`);
+      });
+
+      // Listen for error event
+      socket.once("error", (error) => {
+        console.error("Error joining room:", error);
+        setFeedback({
+          open: true,
+          title: "Failed to join room",
+          description: error.message || "An error occurred while joining the room.",
+          actionLabel: "Close",
+          variant: "error",
+        });
+      });
+
+      // Set a timeout to clean up listeners if no response
+      const timeout = setTimeout(() => {
+        socket.off("room-state");
+        socket.off("error");
+      }, 30000);
+
+      // Clean up timeout on successful response
+      socket.once("room-state", () => clearTimeout(timeout));
+      socket.once("error", () => clearTimeout(timeout));
+    } catch (error) {
+      console.error("Error joining room:", error);
+      setFeedback({
+        open: true,
+        title: "Failed to join room",
+        description: "An unknown error occurred while joining the room.",
+        actionLabel: "Close",
+        variant: "error",
+      });
+    }
+  }
+
   useEffect(() => {
     handleGetRooms();
   }, []);
@@ -210,11 +281,13 @@ export default function Rooms() {
               key={room.id}
               name={room.roomTitle}
               location={room.location}
+              onClick={() => handleJoinRoom(room.id)}
             />
           ))}
         </div>
       </main>
 
+      {/* Feedback */}
       <FeedbackModal
         open={feedback?.open ?? false}
         onOpenChange={(open) => {
@@ -228,6 +301,7 @@ export default function Rooms() {
         variant={feedback?.variant ?? "success"}
       />
 
+      {/* Create room modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className={cn(poppins.className, "bg-(--light-blue) border-(--dark-blue)/15 rounded-lg p-6")}>
           <DialogHeader>
