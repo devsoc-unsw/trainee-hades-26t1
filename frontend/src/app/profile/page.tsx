@@ -36,9 +36,9 @@ export default function Profile() {
       <Navbar />
       <main className="flex flex-col items-center px-10 py-33 gap-8">
         {/* Profile */}
-        <div className="relative w-full max-w-2xl bg-(--dark-blue) rounded-3xl px-10 pt-35 pb-8 flex flex-col items-center">
+        <div className="relative w-full max-w-2xl bg-(--dark-blue) rounded-3xl px-10 pt-20 sm:pt-35 pb-8 flex flex-col items-center">
           {/* Profile Pic */}
-          <div className="absolute -top-29 w-60 h-60 rounded-full bg-(--pastel-yellow) border-4 border-(--dark-blue) overflow-hidden">
+          <div className="absolute -top-16 sm:-top-29 w-36 h-36 sm:w-60 sm:h-60 rounded-full bg-(--pastel-yellow) border-4 border-(--dark-blue) overflow-hidden">
             <Image
               src="/ainsworth-building.jpg" //hardcoded version
               alt="👽"
@@ -47,7 +47,7 @@ export default function Profile() {
             />
           </div>
           {/* Currency */}
-          <p className="absolute top-4 left-6 text-white text-xl font-(family-name:--font-pixelify)">
+          <p className="absolute top-4 left-6 text-white text-sm sm:text-xl font-(family-name:--font-pixelify)">
             Currency: {currency}
           </p>
           {/* Name */}
@@ -60,7 +60,7 @@ export default function Profile() {
                 className="bg-transparent border-b-2 border-white text-white text-2xl font-(family-name:--font-pixelify) tracking-widest text-center outline-none"
               />
             ) : (
-              <h1 className="text-white text-xl font-(family-name:--font-pixelify) tracking-widest">
+              <h1 className="text-white text-base sm:text-xl font-(family-name:--font-pixelify) tracking-widest">
                 Username: {userName}
               </h1>
             )}
@@ -73,7 +73,7 @@ export default function Profile() {
           </div>
 
           {/* Email */}
-          <p className="text-white text-xl font-(family-name:--font-pixelify) mt-2">
+          <p className="text-white text-base sm:text-xl font-(family-name:--font-pixelify) mt-2">
             email: example@gmail.com {/* Hardcoded version */}
           </p>
         </div>
