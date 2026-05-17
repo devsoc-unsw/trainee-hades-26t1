@@ -214,7 +214,7 @@ export default function Room() {
           {/* Author and Room Description */}
           <div className="flex flex-row w-full gap-6 text-(--dark-blue) justify-between items-center">
             <div className="font-mono text-md">
-              The room description goes in here.
+              {data?.description || ""}
             </div>
             <div className="bg-(--pastel-yellow) border-2 border-(--dark-blue) rounded-xl p-2">
               Created by: <span className="font-semibold">{createdBy || "Unknown"}</span>
