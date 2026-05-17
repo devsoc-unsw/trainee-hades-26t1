@@ -46,9 +46,8 @@ export default function RoomCard({
           {/* Class name */}
           <div className="absolute bottom-0 left-0 right-0 p-4">
             <span
-              className={`text-xs font-(family-name:--font-pixelify) ${
-                imageUrl ? "text-white" : "text-(--dark-blue)"
-              }`}
+              className={`text-xs font-(family-name:--font-pixelify) ${imageUrl ? "text-white" : "text-(--dark-blue)"
+                }`}
             >
               {name}
             </span>
