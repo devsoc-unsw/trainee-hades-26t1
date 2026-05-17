@@ -16,7 +16,7 @@ export default function Navbar() {
   const router = useRouter();
 
   const links = [
-    { href: "/", label: "Home" },
+    { href: "/", label: "Your Room" },
     { href: "/rooms", label: "Rooms" },
     { href: "/profile", label: "Profile" },
   ];
@@ -24,9 +24,11 @@ export default function Navbar() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-(--pastel-yellow) text-(--dark-blue) border-b-2 border-(--dark-blue)">
       <div className="h-16 flex items-center px-6 justify-between">
-        <span className="font-(family-name:--font-pixelify) font-bold text-2xl transition-transform duration-300 hover:scale-105">
-          StudyNook.
-        </span>
+        <Link href="/home">
+          <span className="font-(family-name:--font-pixelify) font-bold text-2xl transition-transform duration-300 hover:scale-105">
+            StudyNook.
+          </span>
+        </Link>
 
         {/* Desktop links */}
         <div className="hidden md:flex gap-6 text-l">
