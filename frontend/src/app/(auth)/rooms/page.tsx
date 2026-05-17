@@ -18,7 +18,7 @@ import { supabase } from '@/supabaseClient';
 import { pixelify, poppins } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 import { FeedbackModal } from "@/components/FeedbackModal";
-import { getSocket } from "@/lib/socket";
+import { getSocket, initSocket } from "@/lib/socket";
 import { Feedback } from "@/lib/types";
 
 
@@ -200,17 +200,13 @@ export default function Rooms() {
         return;
       }
 
-      // Cannot join room if profiles.room isn't null (user is already in a room)
       const profileResp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
         method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
+        headers: { "Authorization": `Bearer ${token}` }
       });
 
       if (!profileResp.ok) {
         const errorData = await profileResp.json();
-        console.error("Error fetching profile:", errorData.error);
         setFeedback({
           open: true,
           title: "Failed to fetch profile",
@@ -222,10 +218,13 @@ export default function Rooms() {
       }
 
       const profileData = await profileResp.json();
+
       if (profileData.room === roomId) {
-        router.push(`/room/${profileData.room}`);
+        router.push(`/room/${roomId}`);
         return;
-      } else if (profileData.room) {
+      }
+
+      if (profileData.room) {
         setFeedback({
           open: true,
           title: "Already in a room",
@@ -236,38 +235,27 @@ export default function Rooms() {
         return;
       }
 
-      const socket = getSocket();
+      const socket = initSocket(token, String(roomId));
 
-      // Emit join-room event with roomId and token
-      socket.emit("join-room", { roomId: String(roomId), token });
+      // Clean up any stale listeners from previous attempts
+      socket.off("room-state");
+      socket.off("error");
 
-      // Listen for room-state event (successful join)
-      socket.once("room-state", async (data) => {
-        console.log("Successfully joined room:", data);
-
-        // Add current room to user profile
-        const updateProfileResp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
-          method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ room: roomId })
+      const timeout = setTimeout(() => {
+        socket.off("room-state");
+        socket.off("error");
+        setFeedback({
+          open: true,
+          title: "Request timed out",
+          description: "The server did not respond. Please try again.",
+          actionLabel: "Close",
+          variant: "error",
         });
+      }, 10000);
 
-        if (!updateProfileResp.ok) {
-          const errorData = await updateProfileResp.json();
-          console.error("Error updating profile:", errorData.error);
-          setFeedback({
-            open: true,
-            title: "Failed to update profile",
-            description: errorData.error || "An unknown error occurred while updating your profile.",
-            actionLabel: "Close",
-            variant: "error",
-          });
-          return;
-        }
-
+      socket.once("room-state", (data) => {
+        clearTimeout(timeout);
+        console.log("Successfully joined room:", data);
         setFeedback({
           open: true,
           title: "Room joined successfully",
@@ -275,12 +263,11 @@ export default function Rooms() {
           actionLabel: "Close",
           variant: "success",
         });
-        // Navigate to the room page
         router.push(`/room/${roomId}`);
       });
 
-      // Listen for error event
       socket.once("error", (error) => {
+        clearTimeout(timeout);
         console.error("Error joining room:", error);
         setFeedback({
           open: true,
@@ -291,15 +278,8 @@ export default function Rooms() {
         });
       });
 
-      // Set a timeout to clean up listeners if no response
-      const timeout = setTimeout(() => {
-        socket.off("room-state");
-        socket.off("error");
-      }, 30000);
+      socket.emit("join-room", { roomId: String(roomId), token });
 
-      // Clean up timeout on successful response
-      socket.once("room-state", () => clearTimeout(timeout));
-      socket.once("error", () => clearTimeout(timeout));
     } catch (error) {
       console.error("Error joining room:", error);
       setFeedback({
@@ -310,7 +290,7 @@ export default function Rooms() {
         variant: "error",
       });
     }
-  }
+  };
 
   const handleLogout = async () => {
     try {

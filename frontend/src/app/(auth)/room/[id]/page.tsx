@@ -10,7 +10,7 @@ import { type Room } from "@/lib/types";
 import { supabase } from "@/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { getSocket } from "@/lib/socket";
+import { getSocket, initSocket } from "@/lib/socket";
 import { Button } from "@/components/ui/button";
 
 export default function Room() {
@@ -165,6 +165,31 @@ export default function Room() {
       updateRoomData({ ...data });
     }
   }, [isEditing]);
+
+  useEffect(() => {
+    const reconnect = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      const socket = initSocket(token, roomId);
+
+      if (socket.connected) {
+        socket.emit("join-room", { roomId: String(roomId), token });
+      }
+      // if not connected yet, initSocket's internal `connect` listener handles it
+    };
+
+    reconnect();
+
+    return () => {
+      // clean up room-specific listeners on unmount
+      // but don't disconnect — socket is a singleton
+      const socket = getSocket();
+      socket.off("room-state");
+      socket.off("error");
+    };
+  }, [roomId]);
 
   return (
     <div className="min-h-screen bg-white">
