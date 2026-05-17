@@ -10,9 +10,15 @@ interface PomodoroState {
   remainingTime: number | null;
 }
 
+interface TodoItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
 interface TodoState {
   id: string;
-  items: unknown;
+  items: TodoItem[];
 }
 
 interface RoomState {
@@ -22,7 +28,10 @@ interface RoomState {
 }
 
 const roomStates = new Map<string, RoomState>();
-const socketUsers = new Map<string, { userId: string; roomId: string }>();
+const socketUsers = new Map<
+  string,
+  { userId: string; roomId: string; token: string }
+>();
 
 async function getUserFromToken(token: string): Promise<string | null> {
   try {
@@ -76,6 +85,16 @@ async function fetchRoomStateFromSupabase(
   return { pomodoroState, todoState };
 }
 
+function saveTodosToSupabase(todoId: string, items: TodoItem[], token: string) {
+  createSupabaseClient(token)
+    .from("todos")
+    .update({ items })
+    .eq("id", todoId)
+    .then(({ error }) => {
+      if (error) console.error("Failed to save todos:", error.message);
+    });
+}
+
 export const setupSocketHandlers = (io: Server) => {
   io.on("connection", (socket: Socket) => {
     console.log(`User connected: ${socket.id}`);
@@ -103,7 +122,7 @@ export const setupSocketHandlers = (io: Server) => {
       }
 
       room.users.add(userId);
-      socketUsers.set(socket.id, { userId, roomId });
+      socketUsers.set(socket.id, { userId, roomId, token });
 
       socket.emit("room-state", {
         users: Array.from(room.users),
@@ -154,6 +173,91 @@ export const setupSocketHandlers = (io: Server) => {
           message,
           timestamp: new Date().toISOString(),
         });
+      },
+    );
+
+    // Add todo handler
+    socket.on(
+      "add-todo",
+      async ({ roomId, item }: { roomId: string; item: TodoItem }) => {
+        const session = socketUsers.get(socket.id);
+        if (!session || session.roomId !== roomId) return;
+
+        const room = roomStates.get(roomId);
+        if (!room) return;
+
+        if (!room.todoState) {
+          // If no todos row yet —> create new one
+          const { data, error } = await createSupabaseClient(session.token)
+            .from("todos")
+            .insert({ room_id: roomId, items: [item] })
+            .select()
+            .single();
+          if (error || !data) return;
+          room.todoState = { id: data.id, items: [item] };
+        } else {
+          room.todoState.items.push(item);
+          saveTodosToSupabase(
+            room.todoState.id,
+            room.todoState.items,
+            session.token,
+          );
+        }
+
+        io.to(roomId).emit("todo-updated", { todoState: room.todoState });
+      },
+    );
+
+    // Remove todo handler
+    socket.on(
+      "remove-todo",
+      ({ roomId, todoId }: { roomId: string; todoId: string }) => {
+        const session = socketUsers.get(socket.id);
+        if (!session || session.roomId !== roomId) return;
+
+        const room = roomStates.get(roomId);
+        if (!room?.todoState) return;
+
+        room.todoState.items = room.todoState.items.filter(
+          (i) => i.id !== todoId,
+        );
+        saveTodosToSupabase(
+          room.todoState.id,
+          room.todoState.items,
+          session.token,
+        );
+        io.to(roomId).emit("todo-updated", { todoState: room.todoState });
+      },
+    );
+
+    // Update todo handler
+    socket.on(
+      "update-todo",
+      ({
+        roomId,
+        todoId,
+        changes,
+      }: {
+        roomId: string;
+        todoId: string;
+        changes: Partial<Omit<TodoItem, "id">>;
+      }) => {
+        const session = socketUsers.get(socket.id);
+        if (!session || session.roomId !== roomId) return;
+
+        const room = roomStates.get(roomId);
+        if (!room?.todoState) return;
+
+        const item = room.todoState.items.find((i) => i.id === todoId);
+        if (!item) return;
+
+        Object.assign(item, changes);
+        saveTodosToSupabase(
+          room.todoState.id,
+          room.todoState.items,
+          session.token,
+        );
+        io.to(roomId).emit("todo-updated", { todoState: room.todoState });
       },
     );
 
