@@ -22,6 +22,8 @@ import { FeedbackModal } from "@/components/FeedbackModal";
 interface Room {
   id: number;
   roomTitle: string;
+  description: string;
+  location: string;
   createdAt: string;
   createdBy: string;
 }
@@ -73,8 +75,8 @@ export default function Rooms() {
 
       const newRoom = {
         roomTitle: title,
-        roomDescription: newRoomDescription,
-        roomLocation: newRoomLocation
+        description: newRoomDescription,
+        location: newRoomLocation
       }
 
       const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/room`,
@@ -207,6 +209,7 @@ export default function Rooms() {
               id={room.id}
               key={room.id}
               name={room.roomTitle}
+              location={room.location}
             />
           ))}
         </div>

@@ -6,7 +6,7 @@ const router: Router = Router();
 // POST /api/rooms/room - Create a new room
 router.post("/room", supabaseAuth, async (req: Request, res: Response) => {
   try {
-    const { roomTitle } = req.body;
+    const { roomTitle, description, location } = req.body;
     const supabaseClient = req.supabaseClient;
 
     // Validate required fields
@@ -25,6 +25,8 @@ router.post("/room", supabaseAuth, async (req: Request, res: Response) => {
     // Create room entry
     const roomData = {
       room_title: roomTitle,
+      description: description || "",
+      location: location || "Online",
       created_by: req.authUser.id,
       created_at: new Date().toISOString()
     };
@@ -62,7 +64,7 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
 
     const { data, error } = await supabaseClient
       .from("rooms")
-      .select("id, roomTitle:room_title, createdBy:created_by, createdAt:created_at")
+      .select("id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -89,7 +91,7 @@ router.get("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
 
     const { data, error } = await supabaseClient
       .from("rooms")
-      .select("id, roomTitle:room_title, createdBy:created_by, createdAt:created_at")
+      .select("id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at")
       .eq("room_id", roomId)
       .single();
 
