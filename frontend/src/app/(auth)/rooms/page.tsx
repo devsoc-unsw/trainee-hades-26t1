@@ -222,7 +222,10 @@ export default function Rooms() {
       }
 
       const profileData = await profileResp.json();
-      if (profileData.room) {
+      if (profileData.room === roomId) {
+        router.push(`/room/${profileData.room}`);
+        return;
+      } else if (profileData.room) {
         setFeedback({
           open: true,
           title: "Already in a room",
