@@ -16,6 +16,7 @@ import {
 import { supabase } from '@/supabaseClient';
 import { pixelify, poppins } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
+import { FeedbackModal } from "@/components/FeedbackModal";
 
 
 interface Room {
@@ -211,11 +212,24 @@ export default function Rooms() {
         </div>
       </main>
 
+      <FeedbackModal
+        open={feedback?.open ?? false}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFeedback(null);
+          }
+        }}
+        title={feedback?.title ?? ""}
+        description={feedback?.description ?? ""}
+        actionLabel={feedback?.actionLabel ?? "Close"}
+        variant={feedback?.variant ?? "success"}
+      />
+
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className={cn(poppins.className, "w-96")}>
+        <DialogContent className={cn(poppins.className, "bg-(--light-blue) border-(--dark-blue)/15 rounded-lg p-6")}>
           <DialogHeader>
-            <DialogTitle className={`text-2xl font-bold ${pixelify.className}`}>Create New Room</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className={`text-3xl font-bold text-(--dark-blue) ${pixelify.className}`}>Create New Room</DialogTitle>
+            <DialogDescription className="text-sm text-gray-600">
               Enter a title, description, and location for your new room
             </DialogDescription>
           </DialogHeader>
@@ -237,7 +251,8 @@ export default function Rooms() {
                   value={newRoomTitle}
                   onChange={(e) => setNewRoomTitle(e.target.value)}
                   placeholder="Enter room title"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  className="bg-(--dark-blue)/50 w-full px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  required
                   autoFocus
                 />
               </div>
@@ -249,7 +264,7 @@ export default function Rooms() {
                   value={newRoomDescription}
                   onChange={(e) => setNewRoomDescription(e.target.value)}
                   placeholder="Enter room description"
-                  className="w-full max-h-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  className="bg-(--dark-blue)/50 w-full max-h-32 px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                   autoFocus
                 />
               </div>
@@ -262,12 +277,12 @@ export default function Rooms() {
                   value={newRoomLocation}
                   onChange={(e) => setNewRoomLocation(e.target.value)}
                   placeholder="Enter room location"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  className="bg-(--dark-blue)/50 w-full px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                   autoFocus
                 />
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex justify-end gap-4 bg-transparent border-none">
               <Button
                 type="button"
                 variant="outline"
