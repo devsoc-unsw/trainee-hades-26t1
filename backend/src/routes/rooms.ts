@@ -92,7 +92,7 @@ router.get("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
     const { data, error } = await supabaseClient
       .from("rooms")
       .select("id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at")
-      .eq("room_id", roomId)
+      .eq("id", roomId)
       .single();
 
     if (error) {
@@ -100,6 +100,70 @@ router.get("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Room not found" });
     }
 
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// PUT /api/rooms/:roomId - Update a specific room
+router.put("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
+  try {
+    const { roomId } = req.params;
+    const { roomTitle, description, location } = req.body;
+    const supabaseClient = req.supabaseClient;
+    const authUser = req.authUser;
+
+    if (!supabaseClient) {
+      return res.status(500).json({ error: "Supabase client not initialized" });
+    }
+
+    if (!authUser) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // Build update object with only provided fields
+    const updateData: any = {};
+    if (roomTitle !== undefined) updateData.room_title = roomTitle;
+    if (description !== undefined) updateData.description = description;
+    if (location !== undefined) updateData.location = location;
+
+    // Ensure at least one field is provided
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        error: "Please provide at least one field to update (roomTitle, description, or location)"
+      });
+    }
+
+    // Check if user is authorized
+    const { data: profileData, error: profileError } = await supabaseClient
+      .from("profiles")
+      .select("room")
+      .eq("id", authUser.id)
+      .single();
+
+    if (profileError || !profileData) {
+      return res.status(403).json({ error: "Profile not found" });
+    }
+
+    if (profileData.room !== roomId) {
+      return res.status(403).json({ error: "You are not a member of this room" });
+    }
+
+    const { data, error } = await supabaseClient
+      .from("rooms")
+      .update(updateData)
+      .eq("id", roomId)
+      .select("id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at")
+      .single();
+
+    if (error) {
+      console.error("Supabase error:", error);
+      return res.status(500).json({ error: "Failed to update room" });
+    }
+    
+    console.log("Room updated successfully:", data);
     res.json(data);
   } catch (err) {
     console.error(err);
