@@ -107,4 +107,52 @@ router.get("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
   }
 });
 
+// PUT /api/rooms/:roomId - Update a specific room
+router.put("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
+  try {
+    const { roomId } = req.params;
+    const { roomTitle, description, location } = req.body;
+    const supabaseClient = req.supabaseClient;
+
+    if (!supabaseClient) {
+      return res.status(500).json({ error: "Supabase client not initialized" });
+    }
+
+    // Validate required fields
+    if (!roomTitle) {
+      return res.status(400).json({
+        error: "Missing required field: roomTitle"
+      });
+    }
+
+    const updateData: any = {
+      room_title: roomTitle,
+      description: description || "",
+      location: location || "Online"
+    };
+
+    const { data, error } = await supabaseClient
+      .from("rooms")
+      .update(updateData)
+      .eq("id", roomId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Supabase error:", error);
+      return res.status(404).json({ error: "Room not found or failed to update" });
+    }
+
+    res.json({
+      message: "Room updated successfully",
+      data: {
+        room: data
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
