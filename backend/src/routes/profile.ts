@@ -16,7 +16,6 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
-    console.log("Authenticated user ID:", userId);
     
     const { data, error } = await supabaseClient
     .from("profiles")
@@ -25,9 +24,6 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
     .single();
 
     const email = req.authUser?.email;
-    
-    console.log("Profile data:", data);
-    console.log("Email:", email);
 
     if (error) {
       console.error("Supabase error:", error);
@@ -70,7 +66,7 @@ router.put("/", supabaseAuth, async (req: Request, res: Response) => {
       .from("profiles")
       .update(updateData)
       .eq("id", userId)
-      .select("id, email, name, currency, avatar_url, created_at") 
+      .select("id, name, rooms, currency, avatar_url") 
       .single();
     
     if (error) {
