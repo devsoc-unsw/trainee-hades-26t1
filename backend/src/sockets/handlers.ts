@@ -187,15 +187,22 @@ export const setupSocketHandlers = (io: Server) => {
         if (!room) return;
 
         if (!room.todoState) {
-          // If no todos row yet —> create new one
+          // placeholder to prevent concurrent adds from double-inserting
+          room.todoState = { id: "", items: [item] };
+
           const { data, error } = await createSupabaseClient(session.token)
             .from("todos")
-            .insert({ room_id: roomId, items: [item] })
+            .insert({ room_id: roomId, items: room.todoState.items })
             .select()
             .single();
-          if (error || !data) return;
-          room.todoState = { id: data.id, items: [item] };
+
+          if (error || !data) {
+            room.todoState = null;
+            return;
+          }
+          room.todoState.id = data.id;
         } else {
+          if (room.todoState.items.some((i) => i.id === item.id)) return;
           room.todoState.items.push(item);
           saveTodosToSupabase(
             room.todoState.id,
@@ -281,19 +288,5 @@ export const setupSocketHandlers = (io: Server) => {
       }
       console.log(`User disconnected: ${socket.id}`);
     });
-
-    // Message handler example
-    // socket.on("message", (data) => {
-    //   console.log(`Message from ${socket.id}:`, data);
-    //   io.emit("message", { id: socket.id, ...data });
-    // });
   });
-};
-
-export const todoHandler = (io: Server) => {
-  // todo-related events
-};
-
-export const roomHandler = (io: Server) => {
-  // join-room
 };
