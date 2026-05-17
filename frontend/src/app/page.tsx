@@ -2,7 +2,7 @@ import Image from "next/image";
 
 export default function Landing() {
   return (
-    <div className="text-center mt-45">
+    <div className="text-center mt-[20vh]">
       <h1 className="text-7xl font-bold" style={{ color: "var(--dark-blue)" }}>
         {" "}
         StudyNook.
@@ -15,7 +15,7 @@ export default function Landing() {
         Do it Together.
       </p>
 
-      <div className="flex justify-center gap-5 text-sm mt-10">
+      <div className="flex justify-center gap-5 text-sm mt-10 mb-[10vh]">
         <p
           className="font-bold font-mono pl-6 pr-6 p-3 border rounded-xl inline"
           style={{
