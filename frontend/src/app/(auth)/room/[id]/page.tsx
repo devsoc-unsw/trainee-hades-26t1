@@ -75,6 +75,36 @@ export default function Room() {
     }
   };
 
+  const updateRoomData = async (updatedData: Partial<Room>) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error("User not authenticated");
+      }
+
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updatedData),
+      });
+
+      if (!resp.ok) {
+        const errorResp = await resp.json();
+        throw new Error(errorResp.error || "Failed to update room data");
+      }
+
+      const updatedRoom = await resp.json();
+      setData(updatedRoom);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unknown error");
+    }
+  };
+
   useEffect(() => {
     getRoomData(roomId);
   }, [roomId]);
@@ -89,6 +119,12 @@ export default function Room() {
     }
   }, [data?.createdBy]);
 
+  useEffect(() => {
+    if (!isEditing) {
+      updateRoomData({ roomTitle: data?.roomTitle || "" });
+    }
+  }, [isEditing]);
+
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
@@ -101,7 +137,7 @@ export default function Room() {
               <input
                 autoFocus
                 value={data?.roomTitle || ""}
-                // onChange={(e) => setData({ ...data, roomTitle: e.target.value })}
+                onChange={(e) => setData(prev => prev ? { ...prev, roomTitle: e.target.value } : prev)}
                 maxLength={30}
                 onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
                 className="bg-transparent border-b border-white/50 outline-none w-full"

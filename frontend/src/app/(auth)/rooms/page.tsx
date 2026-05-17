@@ -200,14 +200,71 @@ export default function Rooms() {
         return;
       }
 
+      // Cannot join room if profiles.room isn't null (user is already in a room)
+      const profileResp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+
+      if (!profileResp.ok) {
+        const errorData = await profileResp.json();
+        console.error("Error fetching profile:", errorData.error);
+        setFeedback({
+          open: true,
+          title: "Failed to fetch profile",
+          description: errorData.error || "An unknown error occurred while fetching your profile.",
+          actionLabel: "Close",
+          variant: "error",
+        });
+        return;
+      }
+
+      const profileData = await profileResp.json();
+      if (profileData.room) {
+        setFeedback({
+          open: true,
+          title: "Already in a room",
+          description: "You must leave your current room before joining a new one.",
+          actionLabel: "Close",
+          variant: "error",
+        });
+        return;
+      }
+
       const socket = getSocket();
 
       // Emit join-room event with roomId and token
       socket.emit("join-room", { roomId: String(roomId), token });
 
       // Listen for room-state event (successful join)
-      socket.once("room-state", (data) => {
+      socket.once("room-state", async (data) => {
         console.log("Successfully joined room:", data);
+
+        // Add current room to user profile
+        const updateProfileResp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ room: roomId })
+        });
+
+        if (!updateProfileResp.ok) {
+          const errorData = await updateProfileResp.json();
+          console.error("Error updating profile:", errorData.error);
+          setFeedback({
+            open: true,
+            title: "Failed to update profile",
+            description: errorData.error || "An unknown error occurred while updating your profile.",
+            actionLabel: "Close",
+            variant: "error",
+          });
+          return;
+        }
+
         setFeedback({
           open: true,
           title: "Room joined successfully",
@@ -252,37 +309,37 @@ export default function Rooms() {
     }
   }
 
-  // const handleLogout = async () => {
-  //   try {
-  //     const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/logout`, {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //     });
+  const handleLogout = async () => {
+    try {
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/logout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
-  //     if (!resp.ok) {
-  //       const errorData = await resp.json();
-  //       throw new Error(errorData.error || "Failed to log out");
-  //     }
+      if (!resp.ok) {
+        const errorData = await resp.json();
+        throw new Error(errorData.error || "Failed to log out");
+      }
 
-  //     // Clear the session on the frontend
-  //     await supabase.auth.signOut();
+      // Clear the session on the frontend
+      await supabase.auth.signOut();
 
-  //     // Redirect to login page
-  //     router.push("/login");
+      // Redirect to login page
+      router.push("/login");
 
-  //   } catch (error) {
-  //     console.error("Error logging out:", error);
-  //     setFeedback({
-  //       open: true,
-  //       title: "Failed to log out",
-  //       description: "An unknown error occurred while logging out.",
-  //       actionLabel: "Close",
-  //       variant: "error",
-  //     });
-  //   }
-  // }
+    } catch (error) {
+      console.error("Error logging out:", error);
+      setFeedback({
+        open: true,
+        title: "Failed to log out",
+        description: "An unknown error occurred while logging out.",
+        actionLabel: "Close",
+        variant: "error",
+      });
+    }
+  }
 
   useEffect(() => {
     handleGetRooms();
@@ -291,7 +348,7 @@ export default function Rooms() {
   return (
     <div className="pt-18 overflow-x-hidden">
       <Navbar />
-      {/* <Button onClick={handleLogout}>Logout temp</Button> */}
+      <Button onClick={handleLogout}>Logout temp</Button>
       <main className="px-10 py-8">
         <div className="flex justify-between items-center">
           <FilterBar value={filter} onChange={setFilter} />

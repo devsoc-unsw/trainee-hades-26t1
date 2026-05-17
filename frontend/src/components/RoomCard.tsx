@@ -37,26 +37,25 @@ export default function RoomCard({
       }}
       onMouseLeave={() => setToolTip(null)}
     >
-      <Link href={`/room/${id}`}>
-        <div className="relative rounded-2xl overflow-hidden transition-transform duration-200 hover:scale-[1.02] border-2 border-(--dark-blue) h-48">
-          {/* Background, image || white */}
-          {imageUrl ? (
-            <Image src={imageUrl} alt={name} fill className="object-cover" />
-          ) : (
-            <div className="w-full h-full bg-white" />
-          )}
 
-          {/* Class name */}
-          <div className="absolute bottom-0 left-0 right-0 p-4">
-            <span
-              className={`text-xs font-(family-name:--font-pixelify) ${imageUrl ? "text-white" : "text-(--dark-blue)"
-                }`}
-            >
-              {name}
-            </span>
-          </div>
+      <div className="relative rounded-2xl overflow-hidden transition-transform duration-200 hover:scale-[1.02] border-2 border-(--dark-blue) h-48">
+        {/* Background, image || white */}
+        {imageUrl ? (
+          <Image src={imageUrl} alt={name} fill className="object-cover" />
+        ) : (
+          <div className="w-full h-full bg-white" />
+        )}
+
+        {/* Class name */}
+        <div className="absolute bottom-0 left-0 right-0 p-4">
+          <span
+            className={`text-xs font-(family-name:--font-pixelify) ${imageUrl ? "text-white" : "text-(--dark-blue)"
+              }`}
+          >
+            {name}
+          </span>
         </div>
-      </Link>
+      </div>
 
       {/* Mouse Tooltip*/}
       {tooltip && (
