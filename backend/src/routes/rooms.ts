@@ -151,40 +151,20 @@ router.put("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
       return res.status(403).json({ error: "You are not a member of this room" });
     }
 
-    const { error: updateError } = await supabaseClient
+    const { data, error } = await supabaseClient
       .from("rooms")
       .update(updateData)
-      .eq("id", roomId);
+      .eq("id", roomId)
+      .select("id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at")
+      .single();
 
-    if (updateError) {
-      console.error("Supabase update error:", updateError);
+    if (error) {
+      console.error("Supabase error:", error);
       return res.status(500).json({ error: "Failed to update room" });
     }
     
-    // Fetch the updated room data separately
-    const { data, error: fetchError } = await supabaseClient
-      .from("rooms")
-      .select("id, room_title, description, location, created_by, created_at")
-      .eq("id", roomId)
-      .single();
-
-    if (fetchError || !data) {
-      console.error("Supabase fetch error:", fetchError);
-      return res.status(500).json({ error: "Failed to fetch updated room" });
-    }
-    
-    // Format response with field aliases
-    const formattedData = {
-      id: data.id,
-      roomTitle: data.room_title,
-      description: data.description,
-      location: data.location,
-      createdBy: data.created_by,
-      createdAt: data.created_at
-    };
-    
-    console.log("Room updated successfully:", formattedData);
-    res.json(formattedData);
+    console.log("Room updated successfully:", data);
+    res.json(data);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });

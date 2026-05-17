@@ -256,13 +256,6 @@ export default function Rooms() {
       socket.once("room-state", (data) => {
         clearTimeout(timeout);
         console.log("Successfully joined room:", data);
-        setFeedback({
-          open: true,
-          title: "Room joined successfully",
-          description: "Navigating to the room...",
-          actionLabel: "Close",
-          variant: "success",
-        });
         router.push(`/room/${roomId}`);
       });
 
