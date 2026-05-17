@@ -54,35 +54,40 @@ async function fetchRoomStateFromSupabase(
   pomodoroState: PomodoroState | null;
   todoState: TodoState | null;
 }> {
-  const client = createSupabaseClient(token);
+  try {
+    const client = createSupabaseClient(token);
 
-  const [pomosResult, todosResult] = await Promise.all([
-    client
-      .from("pomos")
-      .select("*")
-      .eq("room_id", roomId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(), // returns null if no rows (single() errors)
-    client.from("todos").select("*").eq("room_id", roomId).maybeSingle(),
-  ]);
+    const [pomosResult, todosResult] = await Promise.all([
+      client
+        .from("pomos")
+        .select("*")
+        .eq("room_id", roomId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      client.from("todos").select("*").eq("room_id", roomId).maybeSingle(),
+    ]);
 
-  const pomodoroState = pomosResult.data
-    ? {
-        id: pomosResult.data.id,
-        duration: pomosResult.data.duration,
-        status: pomosResult.data.status,
-        mode: pomosResult.data.mode,
-        endTime: pomosResult.data.end_time,
-        remainingTime: pomosResult.data.remaining_time,
-      }
-    : null;
+    const pomodoroState = pomosResult.data
+      ? {
+          id: pomosResult.data.id,
+          duration: pomosResult.data.duration,
+          status: pomosResult.data.status,
+          mode: pomosResult.data.mode,
+          endTime: pomosResult.data.end_time,
+          remainingTime: pomosResult.data.remaining_time,
+        }
+      : null;
 
-  const todoState = todosResult.data
-    ? { id: todosResult.data.id, items: todosResult.data.items }
-    : null;
+    const todoState = todosResult.data
+      ? { id: todosResult.data.id, items: todosResult.data.items }
+      : null;
 
-  return { pomodoroState, todoState };
+    return { pomodoroState, todoState };
+  } catch (err) {
+    console.error("fetchRoomStateFromSupabase failed:", err);
+    return { pomodoroState: null, todoState: null };
+  }
 }
 
 function saveTodosToSupabase(todoId: string, items: TodoItem[], token: string) {
@@ -190,13 +195,20 @@ export const setupSocketHandlers = (io: Server) => {
           // placeholder to prevent concurrent adds from double-inserting
           room.todoState = { id: "", items: [item] };
 
-          const { data, error } = await createSupabaseClient(session.token)
-            .from("todos")
-            .insert({ room_id: roomId, items: room.todoState.items })
-            .select()
-            .single();
+              let data, insertError;
+          try {
+            ({ data, error: insertError } = await createSupabaseClient(session.token)
+              .from("todos")
+              .insert({ room_id: roomId, items: room.todoState.items })
+              .select()
+              .single());
+          } catch (err) {
+            console.error("add-todo insert failed:", err);
+            room.todoState = null;
+            return;
+          }
 
-          if (error || !data) {
+          if (insertError || !data) {
             room.todoState = null;
             return;
           }
