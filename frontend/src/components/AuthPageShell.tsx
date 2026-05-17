@@ -1,17 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import type { ReactNode } from "react";
-import { Pixelify_Sans, Poppins } from "next/font/google";
-
-const pixelify = Pixelify_Sans({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-});
-
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
-});
+import { pixelify, poppins } from "@/lib/fonts";
 
 type AuthPageShellProps = {
   title: string;
@@ -69,7 +59,7 @@ export function AuthPageShell({
           </h1>
 
           <p className="text-lg sm:text-xl text-[var(--dark-blue)] mb-5">{subtitle}</p>
-            {children}
+          {children}
           <div className="mt-8 text-center text-base text-md text-[var(--dark-blue)]">
             {footer}
           </div>
