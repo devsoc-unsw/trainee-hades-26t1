@@ -1,4 +1,5 @@
 ﻿# trainee-hades-26t1
+🥀🎶<i> Wait for me... I'm coming with you... </i>🎶🥀
 
 ## Getting started
 
@@ -20,8 +21,8 @@ git clone https://github.com/devsoc-unsw/trainee-hades-26t1.git
 cd frontend
 pnpm install
 ```
-
-2. Running frontend
+2. Create `.env` file. Paste the content in `docs-and-resources` from our discord server.
+3. Running frontend
 
 ```
 pnpm dev
@@ -35,9 +36,7 @@ pnpm dev
 cd backend
 pnpm install
 ```
-2. Create `.env` file
-Paste the content from our discord channel.
-
+2. Create `.env` file. Paste the content in `docs-and-resources` from our discord server.
 3. Running backend
 
 ```
