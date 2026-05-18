@@ -2,6 +2,7 @@
 import Navbar from "@/components/Navbar";
 import FilterBar from "@/components/FilterBar";
 import RoomCard from "@/components/RoomCard";
+import Loading from "@/components/Loading";
 import { useState } from "react";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -40,6 +41,7 @@ export default function Rooms() {
   const [newRoomDescription, setNewRoomDescription] = useState("");
   const [newRoomLocation, setNewRoomLocation] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -143,6 +145,7 @@ export default function Rooms() {
           actionLabel: "Close",
           variant: "error",
         });
+        setLoading(false);
         return;
       }
 
@@ -165,6 +168,7 @@ export default function Rooms() {
           actionLabel: "Close",
           variant: "error",
         });
+        setLoading(false);
         return;
       }
 
@@ -172,6 +176,7 @@ export default function Rooms() {
       console.log("Rooms fetched successfully:", data);
       setRooms(data);
       setFilteredRooms(data);
+      setLoading(false);
     } catch (error) {
       console.error("Error fetching rooms:", error);
       setFeedback({
@@ -181,6 +186,7 @@ export default function Rooms() {
         actionLabel: "Close",
         variant: "error",
       });
+      setLoading(false);
     }
   }
 
@@ -285,38 +291,6 @@ export default function Rooms() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/logout`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!resp.ok) {
-        const errorData = await resp.json();
-        throw new Error(errorData.error || "Failed to log out");
-      }
-
-      // Clear the session on the frontend
-      await supabase.auth.signOut();
-
-      // Redirect to login page
-      router.push("/login");
-
-    } catch (error) {
-      console.error("Error logging out:", error);
-      setFeedback({
-        open: true,
-        title: "Failed to log out",
-        description: "An unknown error occurred while logging out.",
-        actionLabel: "Close",
-        variant: "error",
-      });
-    }
-  }
-
   useEffect(() => {
     handleGetRooms();
   }, []);
@@ -324,30 +298,37 @@ export default function Rooms() {
   return (
     <div className="pt-18 overflow-x-hidden">
       <Navbar />
-      <Button onClick={handleLogout}>Logout temp</Button>
       <main className="px-10 py-8">
-        <div className="flex justify-between items-center">
-          <FilterBar value={filter} onChange={setFilter} />
-          <Button
-            variant="outline"
-            className="text-(--dark-blue) hover:text-(--dark-blue) border-(--dark-blue) border-2 cursor-pointer"
-            onClick={() => setIsModalOpen(true)}
-          >
-            + New Room
-          </Button>
-        </div>
+        {loading ? (
+          <div className="flex justify-center items-center min-h-96">
+            <Loading />
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-between items-center">
+              <FilterBar value={filter} onChange={setFilter} />
+              <Button
+                variant="outline"
+                className="text-(--dark-blue) hover:text-(--dark-blue) border-(--dark-blue) border-2 cursor-pointer"
+                onClick={() => setIsModalOpen(true)}
+              >
+                + New Room
+              </Button>
+            </div>
 
-        <div className="grid grid-cols-3 gap-6 mt-8">
-          {filteredRooms.map((room) => (
-            <RoomCard
-              id={room.id}
-              key={room.id}
-              name={room.roomTitle}
-              location={room.location}
-              onClick={() => handleJoinRoom(room.id)}
-            />
-          ))}
-        </div>
+            <div className="grid grid-cols-3 gap-6 mt-8">
+              {filteredRooms.map((room) => (
+                <RoomCard
+                  id={room.id}
+                  key={room.id}
+                  name={room.roomTitle}
+                  location={room.location}
+                  onClick={() => handleJoinRoom(room.id)}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </main>
 
       {/* Feedback */}
