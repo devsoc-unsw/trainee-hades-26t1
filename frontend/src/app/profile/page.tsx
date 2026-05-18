@@ -5,6 +5,8 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { Pencil } from "lucide-react";
 import { supabase } from "@/supabaseClient";
+import { Feedback } from "@/lib/types";
+import { FeedbackModal } from "@/components/FeedbackModal";
 
 export default function Profile() {
   const [editing, setEditing] = useState(false);
@@ -13,6 +15,7 @@ export default function Profile() {
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
 
   const getUserData = async () => {
     try {
@@ -21,6 +24,13 @@ export default function Profile() {
       const token = session?.access_token;
       if (!token) {
         console.error("No access token found");
+        setFeedback({
+          open: true,
+          title: "Authentication error",
+          description: "You must be logged in to view your profile.",
+          actionLabel: "Close",
+          variant: "error",
+        });
         setLoading(false);
         return;
       }
@@ -40,6 +50,13 @@ export default function Profile() {
       setLoading(false);
     } catch (err) {
       console.error("Error fetching user data:", err);
+      setFeedback({
+        open: true,
+        title: "Error",
+        description: "We couldn't load your profile data. Please try again later.",
+        actionLabel: "Close",
+        variant: "error",
+      });
       setLoading(false);
     }
   }
@@ -50,6 +67,13 @@ export default function Profile() {
       const token = session?.access_token;
       if (!token) {
         console.error("No access token found");
+        setFeedback({
+          open: true,
+          title: "Authentication error",
+          description: "You must be logged in to update your profile.",
+          actionLabel: "Close",
+          variant: "error",
+        });
         return;
       }
 
@@ -65,11 +89,25 @@ export default function Profile() {
       if (!res.ok) {
         const errorData = await res.json();
         console.error("Error updating user data:", errorData);
+        setFeedback({
+          open: true,
+          title: "Update failed",
+          description: errorData.error || "We couldn't update your profile. Please try again later.",
+          actionLabel: "Close",
+          variant: "error",
+        });
       } else {
         getUserData(); // Refresh data after update
       }
     } catch (err) {
       console.error("Error updating user data:", err);
+      setFeedback({
+        open: true,
+        title: "Update failed",
+        description: "We couldn't update your profile. Please try again later.",
+        actionLabel: "Close",
+        variant: "error",
+      });
     }
   };
 
@@ -146,6 +184,18 @@ export default function Profile() {
           </>
         )}
       </main>
+      <FeedbackModal
+        open={feedback?.open ?? false}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFeedback(null);
+          }
+        }}
+        title={feedback?.title ?? ""}
+        description={feedback?.description ?? ""}
+        actionLabel={feedback?.actionLabel ?? "Close"}
+        variant={feedback?.variant ?? "error"}
+      />
     </div>
   );
 }
