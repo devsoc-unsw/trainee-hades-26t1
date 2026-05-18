@@ -1,4 +1,6 @@
+import { Button } from "@/components/ui/button";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function Landing() {
   return (
@@ -16,25 +18,19 @@ export default function Landing() {
       </p>
 
       <div className="flex justify-center gap-5 text-sm mt-10">
-        <p
-          className="font-bold font-mono pl-6 pr-6 p-3 border rounded-xl inline"
-          style={{
-            color: "var(--background)",
-            backgroundColor: "var(--dark-blue)",
-            borderColor: "var(--dark-blue)",
-          }}
+        <Link
+          href="/register"
+          className="font-bold font-mono pl-6 pr-6 p-3 border rounded-xl inline text-(--background) bg-(--dark-blue) border-(--dark-blue)"
         >
           Get Started
-        </p>
-        <p
-          className="font-mono pl-6 pr-6 p-3 border rounded-xl inline"
-          style={{
-            backgroundColor: "var(--background)",
-            borderColor: "var(--dark-blue)",
-          }}
+        </Link>
+        <Link
+          // TODO: link to where?
+          href="/about"
+          className="font-mono pl-6 pr-6 p-3 border rounded-xl inline bg-(--background) border-(--dark-blue)"
         >
           Learn More
-        </p>
+        </Link>
       </div>
 
       <div>
