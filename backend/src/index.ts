@@ -7,7 +7,7 @@ import authRoutes from "./routes/auth.js";
 import testRoutes from "./routes/test.js";
 import roomsRoutes from "./routes/rooms.js";
 import profileRoutes from "./routes/profile.js";
-import { setupSocketHandlers } from "./sockets/handlers.js";
+import { roomHandler } from "./sockets/handlers.js";
 
 // Load environment variables
 dotenv.config();
@@ -40,7 +40,7 @@ app.use("/api/rooms", roomsRoutes);
 app.use("/api/profile", profileRoutes);
 
 // Socket.IO handlers
-setupSocketHandlers(io);
+roomHandler(io);
 
 // Start server
 httpServer.listen(PORT, () => {

@@ -90,14 +90,26 @@ async function fetchRoomStateFromSupabase(
   }
 }
 
-function saveTodosToSupabase(todoId: string, items: TodoItem[], token: string) {
-  createSupabaseClient(token)
-    .from("todos")
-    .update({ items })
-    .eq("id", todoId)
-    .then(({ error }) => {
-      if (error) console.error("Failed to save todos:", error.message);
-    });
+async function saveTodosToSupabase(
+  todoId: string,
+  items: TodoItem[],
+  token: string,
+): Promise<boolean> {
+  try {
+    const { error } = await createSupabaseClient(token)
+      .from("todos")
+      .update({ items })
+      .eq("id", todoId);
+
+    if (error) {
+      console.error("Failed to save todos:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("saveTodosToSupabase failed:", err);
+    return false;
+  }
 }
 
 export const roomHandler = (io: Server) => {
@@ -106,9 +118,11 @@ export const roomHandler = (io: Server) => {
 
     // Join room handler with authentication
     socket.on("join-room", async ({ roomId, token }) => {
+      console.log("[Handler] join-room received:", { roomId, socketId: socket.id });
       const userId = await getUserFromToken(token);
 
       if (!userId) {
+        console.log("[Handler] Unauthorized join attempt");
         socket.emit("error", { message: "Unauthorized" });
         return; // prevent unauthenticated users coming in
       }
@@ -118,17 +132,23 @@ export const roomHandler = (io: Server) => {
       // First user: Fetch from Supabase, else use memory.
       let room = roomStates.get(roomId);
       if (!room) {
+        console.log("[Handler] New room, fetching state from DB");
         const { pomodoroState, todoState } = await fetchRoomStateFromSupabase(
           roomId,
           token,
         );
         room = { users: new Set(), pomodoroState, todoState };
         roomStates.set(roomId, room);
+        console.log("[Handler] Room initialized with todoState:", todoState ? "yes" : "no");
+      } else {
+        console.log("[Handler] Existing room found in memory");
       }
 
       room.users.add(userId);
       socketUsers.set(socket.id, { userId, roomId, token });
+      console.log("[Handler] socketUsers entry created for socket:", socket.id);
 
+      console.log("[Handler] Emitting room-state to socket:", socket.id);
       socket.emit("room-state", {
         users: Array.from(room.users),
         pomodoroState: room.pomodoroState,
@@ -185,44 +205,84 @@ export const roomHandler = (io: Server) => {
     socket.on(
       "add-todo",
       async ({ roomId, item }: { roomId: string; item: TodoItem }) => {
+        console.log("[Handler] add-todo received:", { roomId, item });
         const session = socketUsers.get(socket.id);
-        if (!session || session.roomId !== roomId) return;
+        console.log("[Handler] session lookup:", session ? "found" : "NOT FOUND");
+        if (!session || session.roomId !== roomId) {
+          console.log("[Handler] Authorization failed: socket not in socketUsers or roomId mismatch");
+          socket.emit("error", { message: "Unauthorized or room mismatch" });
+          return;
+        }
 
         const room = roomStates.get(roomId);
-        if (!room) return;
+        console.log("[Handler] room lookup:", room ? "found" : "NOT FOUND");
+        if (!room) {
+          socket.emit("error", { message: "Room not found" });
+          return;
+        }
 
+        // Check for duplicates before proceeding
+        if (
+          room.todoState &&
+          room.todoState.items.some((i) => i.id === item.id)
+        ) {
+          console.log("[Handler] Duplicate todo detected");
+          socket.emit("error", { message: "Todo already exists" });
+          return;
+        }
+
+        // Initialize todoState if it doesn't exist
         if (!room.todoState) {
-          // placeholder to prevent concurrent adds from double-inserting
-          room.todoState = { id: "", items: [item] };
-
-              let data, insertError;
+          console.log("[Handler] Initializing todoState for room:", roomId);
           try {
-            ({ data, error: insertError } = await createSupabaseClient(session.token)
+            const { data, error: insertError } = await createSupabaseClient(
+              session.token,
+            )
               .from("todos")
-              .insert({ room_id: roomId, items: room.todoState.items })
+              .insert({ room_id: roomId, items: [item] })
               .select()
-              .single());
-          } catch (err) {
-            console.error("add-todo insert failed:", err);
-            room.todoState = null;
-            return;
-          }
+              .single();
 
-          if (insertError || !data) {
-            room.todoState = null;
+            if (insertError || !data) {
+              console.error("add-todo insert failed:", insertError);
+              socket.emit("error", {
+                message: "Failed to create todo list",
+              });
+              return;
+            }
+
+            room.todoState = {
+              id: data.id,
+              items: data.items || [item],
+            };
+            console.log("[Handler] todoState initialized with ID:", room.todoState.id);
+          } catch (err) {
+            console.error("add-todo insert exception:", err);
+            socket.emit("error", { message: "Internal server error" });
             return;
           }
-          room.todoState.id = data.id;
         } else {
-          if (room.todoState.items.some((i) => i.id === item.id)) return;
+          // TodoState exists, add to it
+          console.log("[Handler] Adding item to existing todoState");
           room.todoState.items.push(item);
-          saveTodosToSupabase(
+          const saved = await saveTodosToSupabase(
             room.todoState.id,
             room.todoState.items,
             session.token,
           );
+
+          if (!saved) {
+            // Revert the in-memory change if save failed
+            room.todoState.items.pop();
+            console.log("[Handler] Save failed, reverted change");
+            socket.emit("error", {
+              message: "Failed to save todo",
+            });
+            return;
+          }
         }
 
+        console.log("[Handler] Broadcasting todo-updated to room:", roomId);
         io.to(roomId).emit("todo-updated", { todoState: room.todoState });
       },
     );
@@ -230,21 +290,53 @@ export const roomHandler = (io: Server) => {
     // Remove todo handler
     socket.on(
       "remove-todo",
-      ({ roomId, todoId }: { roomId: string; todoId: string }) => {
+      async ({ roomId, todoId }: { roomId: string; todoId: string }) => {
+        console.log("[Handler] remove-todo received:", { roomId, todoId });
         const session = socketUsers.get(socket.id);
-        if (!session || session.roomId !== roomId) return;
+        console.log("[Handler] session lookup:", session ? "found" : "NOT FOUND");
+        if (!session || session.roomId !== roomId) {
+          console.log("[Handler] Authorization failed");
+          socket.emit("error", { message: "Unauthorized or room mismatch" });
+          return;
+        }
 
         const room = roomStates.get(roomId);
-        if (!room?.todoState) return;
+        if (!room?.todoState) {
+          console.log("[Handler] No todoState found");
+          socket.emit("error", { message: "No todos to remove" });
+          return;
+        }
 
+        const initialLength = room.todoState.items.length;
         room.todoState.items = room.todoState.items.filter(
           (i) => i.id !== todoId,
         );
-        saveTodosToSupabase(
+
+        // If item wasn't found, no-op
+        if (room.todoState.items.length === initialLength) {
+          console.log("[Handler] Todo not found:", todoId);
+          socket.emit("error", { message: "Todo not found" });
+          return;
+        }
+
+        console.log("[Handler] Saving updated todos to DB");
+        const saved = await saveTodosToSupabase(
           room.todoState.id,
           room.todoState.items,
           session.token,
         );
+
+        if (!saved) {
+          // Revert the in-memory change if save failed
+          room.todoState.items = room.todoState.items.concat(
+            { id: todoId, text: "", completed: false }, // placeholder
+          );
+          console.log("[Handler] Save failed, reverted change");
+          socket.emit("error", { message: "Failed to remove todo" });
+          return;
+        }
+
+        console.log("[Handler] Broadcasting todo-updated to room:", roomId);
         io.to(roomId).emit("todo-updated", { todoState: room.todoState });
       },
     );
@@ -252,7 +344,7 @@ export const roomHandler = (io: Server) => {
     // Update todo handler
     socket.on(
       "update-todo",
-      ({
+      async ({
         roomId,
         todoId,
         changes,
@@ -261,21 +353,50 @@ export const roomHandler = (io: Server) => {
         todoId: string;
         changes: Partial<Omit<TodoItem, "id">>;
       }) => {
+        console.log("[Handler] update-todo received:", { roomId, todoId, changes });
         const session = socketUsers.get(socket.id);
-        if (!session || session.roomId !== roomId) return;
+        console.log("[Handler] session lookup:", session ? "found" : "NOT FOUND");
+        if (!session || session.roomId !== roomId) {
+          console.log("[Handler] Authorization failed");
+          socket.emit("error", { message: "Unauthorized or room mismatch" });
+          return;
+        }
 
         const room = roomStates.get(roomId);
-        if (!room?.todoState) return;
+        if (!room?.todoState) {
+          console.log("[Handler] No todoState found");
+          socket.emit("error", { message: "No todos to update" });
+          return;
+        }
 
         const item = room.todoState.items.find((i) => i.id === todoId);
-        if (!item) return;
+        if (!item) {
+          console.log("[Handler] Todo not found:", todoId);
+          socket.emit("error", { message: "Todo not found" });
+          return;
+        }
 
+        // Store original state in case we need to revert
+        const originalItem = { ...item };
+        console.log("[Handler] Updating item:", { original: originalItem, changes });
         Object.assign(item, changes);
-        saveTodosToSupabase(
+
+        console.log("[Handler] Saving updated todos to DB");
+        const saved = await saveTodosToSupabase(
           room.todoState.id,
           room.todoState.items,
           session.token,
         );
+
+        if (!saved) {
+          // Revert the in-memory change if save failed
+          Object.assign(item, originalItem);
+          console.log("[Handler] Save failed, reverted change");
+          socket.emit("error", { message: "Failed to update todo" });
+          return;
+        }
+
+        console.log("[Handler] Broadcasting todo-updated to room:", roomId);
         io.to(roomId).emit("todo-updated", { todoState: room.todoState });
       },
     );
