@@ -21,7 +21,7 @@ export const initSocket = (token: string, roomId: string): Socket => {
 
   // Re-join room on every (re)connect
   s.on("connect", () => {
-    s.emit("join_room", roomId);
+    s.emit("join-room", { roomId, token });
   });
 
   return s;
