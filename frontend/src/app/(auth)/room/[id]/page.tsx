@@ -9,18 +9,35 @@ import { useEffect, useState } from "react";
 import { type Room } from "@/lib/types";
 import { supabase } from "@/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { getSocket, initSocket } from "@/lib/socket";
 import { Button } from "@/components/ui/button";
+import { FeedbackModal } from "@/components/FeedbackModal";
 
 export default function Room() {
   const [isEditing, setIsEditing] = useState(false);
   const [data, setData] = useState<Room | null>(null);
   const [createdBy, setCreatedBy] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
+
+  // Feedback modal state
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackTitle, setFeedbackTitle] = useState("");
+  const [feedbackDescription, setFeedbackDescription] = useState("");
+  const [feedbackVariant, setFeedbackVariant] = useState<"success" | "error">("error");
 
   const roomId = String(useParams().id);
   const router = useRouter();
+
+  // Helper function to show feedback modal
+  const showFeedback = (
+    title: string,
+    description: string,
+    variant: "success" | "error" = "error"
+  ) => {
+    setFeedbackTitle(title);
+    setFeedbackDescription(description);
+    setFeedbackVariant(variant);
+    setFeedbackOpen(true);
+  };
 
   const getRoomData = async (roomId: string) => {
     // Fetch room data from backend using roomId
@@ -29,7 +46,8 @@ export default function Room() {
       const token = session?.access_token;
 
       if (!token) {
-        throw new Error("User not authenticated");
+        showFeedback("Authentication Error", "User not authenticated. Please log in again.");
+        return;
       }
 
       const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`,
@@ -41,13 +59,14 @@ export default function Room() {
         }
       );
       if (!resp.ok) {
-        throw new Error("Failed to fetch room data");
+        showFeedback("Failed to Load Room", "Could not fetch room data. Please try again.");
+        return;
       }
       const data = await resp.json();
       setData(data);
 
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unknown error");
+      showFeedback("Error", error instanceof Error ? error.message : "An unknown error occurred");
     }
   }
 
@@ -57,7 +76,8 @@ export default function Room() {
       const token = session?.access_token;
 
       if (!token) {
-        throw new Error("User not authenticated");
+        showFeedback("Authentication Error", "User not authenticated. Please log in again.");
+        return null;
       }
 
       const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile/${userId}`, {
@@ -68,13 +88,14 @@ export default function Room() {
       });
 
       if (!resp.ok) {
-        throw new Error("Failed to fetch user profile");
+        showFeedback("Failed to Load Profile", "Could not fetch user profile. Please try again.");
+        return null;
       }
 
       const profileData = await resp.json();
       return profileData;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unknown error");
+      showFeedback("Error", error instanceof Error ? error.message : "An unknown error occurred");
       return null;
     }
   };
@@ -85,7 +106,8 @@ export default function Room() {
       const token = session?.access_token;
 
       if (!token) {
-        throw new Error("User not authenticated");
+        showFeedback("Authentication Error", "User not authenticated. Please log in again.");
+        return;
       }
 
       const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`, {
@@ -99,14 +121,15 @@ export default function Room() {
 
       if (!resp.ok) {
         const errorResp = await resp.json();
-        throw new Error(errorResp.error || "Failed to update room data");
+        showFeedback("Failed to Update Room", errorResp.error || "Could not update room data.");
+        return;
       }
 
       const updatedRoom = await resp.json();
       setData(updatedRoom);
     } catch (error) {
       console.error("Update room data error:", error);
-      toast.error(error instanceof Error ? error.message : "Unknown error");
+      showFeedback("Error", error instanceof Error ? error.message : "An unknown error occurred");
     }
   };
 
@@ -117,7 +140,8 @@ export default function Room() {
       const currentUserId = session?.user.id;
 
       if (!token || !currentUserId) {
-        throw new Error("User not authenticated");
+        showFeedback("Authentication Error", "User not authenticated. Please log in again.");
+        return;
       }
 
       // Emit leave-room event via socket
@@ -136,13 +160,17 @@ export default function Room() {
 
       if (!clearRoomResp.ok) {
         const errorResp = await clearRoomResp.json();
-        throw new Error(errorResp.error || "Failed to leave room");
+        showFeedback("Failed to Leave Room", errorResp.error || "Could not leave the room.");
+        return;
       }
 
-      toast.success("Left room successfully");
-      router.push("/rooms");
+      showFeedback("Room Left", "You have successfully left the room.", "success");
+      // Navigate after a brief delay to let user see the success message
+      setTimeout(() => {
+        router.push("/rooms");
+      }, 1500);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to leave room");
+      showFeedback("Error", error instanceof Error ? error.message : "Failed to leave room");
     }
   };
 
@@ -197,7 +225,7 @@ export default function Room() {
       <main className="flex flex-col xl:flex-row min-h-[calc(100vh-64px)] mt-16">
         {/* Room Content */}
         <div className="w-full xl:w-2/3 flex flex-col items-start p-8 gap-8">
-          <div className="w-full h-20 flex items-center gap-2 text-2xl">
+          <div className="w-full h-15 flex items-center gap-2 text-2xl">
             {/* Room Title */}
             <div className="w-full h-full bg-(--dark-blue) text-white font-mono text-2xl tracking-widest px-8 py-5 rounded-xl flex items-center justify-between">
               {isEditing ? (
@@ -268,6 +296,16 @@ export default function Room() {
           </div>
         </div>
       </main>
+
+      {/* Feedback Modal */}
+      <FeedbackModal
+        open={feedbackOpen}
+        onOpenChange={setFeedbackOpen}
+        title={feedbackTitle}
+        description={feedbackDescription}
+        actionLabel={feedbackVariant === "success" ? "Continue" : "Dismiss"}
+        variant={feedbackVariant}
+      />
     </div>
   );
 }
