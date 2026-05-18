@@ -17,12 +17,13 @@ interface TodoState {
 
 interface RoomState {
   users: Set<string>;
+  hostId: string | null;
   pomodoroState: PomodoroState | null;
   todoState: TodoState | null;
 }
 
 const roomStates = new Map<string, RoomState>();
-const socketUsers = new Map<string, { userId: string; roomId: string }>();
+const socketUsers = new Map<string, { userId: string; roomId: string; token: string }>();
 
 async function getUserFromToken(token: string): Promise<string | null> {
   try {
@@ -42,20 +43,22 @@ async function fetchRoomStateFromSupabase(
   roomId: string,
   token: string,
 ): Promise<{
+  hostId: string | null;
   pomodoroState: PomodoroState | null;
   todoState: TodoState | null;
 }> {
   const client = createSupabaseClient(token);
 
-  const [pomosResult, todosResult] = await Promise.all([
+  const [pomosResult, todosResult, roomResult] = await Promise.all([
     client
       .from("pomos")
       .select("*")
       .eq("room_id", roomId)
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle(), // returns null if no rows (single() errors)
+      .maybeSingle(),
     client.from("todos").select("*").eq("room_id", roomId).maybeSingle(),
+    client.from("rooms").select("created_by").eq("id", roomId).single(),
   ]);
 
   const pomodoroState = pomosResult.data
@@ -73,7 +76,9 @@ async function fetchRoomStateFromSupabase(
     ? { id: todosResult.data.id, items: todosResult.data.items }
     : null;
 
-  return { pomodoroState, todoState };
+  const hostId = roomResult.data?.created_by || null;
+
+  return { hostId, pomodoroState, todoState };
 }
 
 export const roomHandler = (io: Server) => {
@@ -94,19 +99,20 @@ export const roomHandler = (io: Server) => {
       // First user: Fetch from Supabase, else use memory.
       let room = roomStates.get(roomId);
       if (!room) {
-        const { pomodoroState, todoState } = await fetchRoomStateFromSupabase(
+        const { hostId, pomodoroState, todoState } = await fetchRoomStateFromSupabase(
           roomId,
           token,
         );
-        room = { users: new Set(), pomodoroState, todoState };
+        room = { users: new Set(), hostId, pomodoroState, todoState };
         roomStates.set(roomId, room);
       }
 
       room.users.add(userId);
-      socketUsers.set(socket.id, { userId, roomId });
+      socketUsers.set(socket.id, { userId, roomId, token });
 
       socket.emit("room-state", {
         users: Array.from(room.users),
+        hostId: room.hostId,
         pomodoroState: room.pomodoroState,
         todoState: room.todoState,
       });
@@ -156,6 +162,188 @@ export const roomHandler = (io: Server) => {
         });
       },
     );
+
+    // Start timer handler
+    socket.on("start-timer", ({ roomId }) => {
+      const session = socketUsers.get(socket.id);
+      if (!session) {
+        socket.emit("error", { message: "Session not found" });
+        return;
+      }
+
+      const room = roomStates.get(roomId);
+      if (!room) {
+        socket.emit("error", { message: "Room not found" });
+        return;
+      }
+
+      // Host Bouncer Check
+      if (session.userId !== room.hostId) {
+        socket.emit("error", { message: "Only host can control timer" });
+        return;
+      }
+
+      // Ensure pomodoroState exists
+      if (!room.pomodoroState) {
+        socket.emit("error", { message: "Pomodo state not initialized" });
+        return;
+      }
+
+      // Calculate endTime: current time + remainingTime (or duration if no remaining)
+      const timeToAdd =
+        (room.pomodoroState.remainingTime || room.pomodoroState.duration || 25 * 60 * 1000);
+      const now = Date.now();
+      const endTime = now + timeToAdd;
+
+      // Update memory
+      room.pomodoroState.status = "running";
+      room.pomodoroState.endTime = endTime;
+
+      // Broadcast timer-updated to room
+      io.to(roomId).emit("timer-updated", {
+        ...room.pomodoroState,
+      });
+
+      // Async DB update (fire and forget)
+      const client = createSupabaseClient(session.token);
+      void client
+        .from("pomos")
+        .update({
+          status: "running",
+          end_time: new Date(endTime).toISOString(),
+        })
+        .eq("id", room.pomodoroState.id)
+        .then(() => {
+          console.log(`Updated pomo ${room.pomodoroState?.id} status to running`);
+        });
+    });
+
+    // Pause timer handler
+    socket.on("pause-timer", ({ roomId }) => {
+      const session = socketUsers.get(socket.id);
+      if (!session) {
+        socket.emit("error", { message: "Session not found" });
+        return;
+      }
+
+      const room = roomStates.get(roomId);
+      if (!room) {
+        socket.emit("error", { message: "Room not found" });
+        return;
+      }
+
+      // Host Bouncer Check
+      if (session.userId !== room.hostId) {
+        socket.emit("error", { message: "Only host can control timer" });
+        return;
+      }
+
+      // Ensure pomodoroState exists
+      if (!room.pomodoroState) {
+        socket.emit("error", { message: "Pomodo state not initialized" });
+        return;
+      }
+
+      // Calculate remainingTime from endTime
+      let remainingTime = room.pomodoroState.remainingTime || 0;
+      if (room.pomodoroState.endTime && room.pomodoroState.status === "running") {
+        const now = Date.now();
+        remainingTime = Math.max(0, room.pomodoroState.endTime - now);
+      }
+
+      // Update memory
+      room.pomodoroState.status = "paused";
+      room.pomodoroState.remainingTime = remainingTime;
+      room.pomodoroState.endTime = null;
+
+      // Broadcast timer-updated to room
+      io.to(roomId).emit("timer-updated", {
+        ...room.pomodoroState,
+      });
+
+      // Async DB update
+      const client = createSupabaseClient(session.token);
+      void client
+        .from("pomos")
+        .update({
+          status: "paused",
+          remaining_time: remainingTime,
+          end_time: null,
+        })
+        .eq("id", room.pomodoroState.id)
+        .then(() => {
+          console.log(`Updated pomo ${room.pomodoroState?.id} status to paused`);
+        });
+    });
+
+    // Change pomo mode handler
+    socket.on("change-pomo-mode", ({ roomId, mode }) => {
+      const session = socketUsers.get(socket.id);
+      if (!session) {
+        socket.emit("error", { message: "Session not found" });
+        return;
+      }
+
+      const room = roomStates.get(roomId);
+      if (!room) {
+        socket.emit("error", { message: "Room not found" });
+        return;
+      }
+
+      // Host Bouncer Check
+      if (session.userId !== room.hostId) {
+        socket.emit("error", { message: "Only host can control timer" });
+        return;
+      }
+
+      // Validate mode
+      const validModes = ["pomodoro", "short_break", "long_break"];
+      if (!validModes.includes(mode)) {
+        socket.emit("error", { message: "Invalid mode" });
+        return;
+      }
+
+      // Ensure pomodoroState exists
+      if (!room.pomodoroState) {
+        socket.emit("error", { message: "Pomodo state not initialized" });
+        return;
+      }
+
+      // Calculate duration based on mode
+      const durations: { [key: string]: number } = {
+        pomodoro: 25 * 60 * 1000,
+        short_break: 5 * 60 * 1000,
+        long_break: 15 * 60 * 1000,
+      };
+      const duration = durations[mode] || 25 * 60 * 1000;
+
+      // Update memory
+      room.pomodoroState.mode = mode;
+      room.pomodoroState.status = "idle";
+      room.pomodoroState.remainingTime = duration;
+      room.pomodoroState.duration = duration;
+      room.pomodoroState.endTime = null;
+
+      // Broadcast timer-updated to room
+      io.to(roomId).emit("timer-updated", {
+        ...room.pomodoroState,
+      });
+
+      // Async DB update (fire and forget)
+      const client = createSupabaseClient(session.token);
+      void client
+        .from("pomos")
+        .update({
+          mode,
+          status: "idle",
+          remaining_time: duration,
+          end_time: null,
+        })
+        .eq("id", room.pomodoroState.id)
+        .then(() => {
+          console.log(`Updated pomo ${room.pomodoroState?.id} mode to ${mode}`);
+        });
+    });
 
     // Disconnect handler
     socket.on("disconnect", () => {
