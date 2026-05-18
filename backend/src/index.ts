@@ -6,7 +6,8 @@ import cors from 'cors';
 import authRoutes from "./routes/auth.js";
 import testRoutes from "./routes/test.js";
 import roomsRoutes from "./routes/rooms.js";
-import { setupSocketHandlers, todoHandler, roomHandler } from "./sockets/handlers.js";
+import profileRoutes from "./routes/profile.js";
+import { todoHandler, roomHandler } from "./sockets/handlers.js";
 
 // Load environment variables
 dotenv.config();
@@ -36,9 +37,9 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/test", testRoutes);
 app.use("/api/rooms", roomsRoutes);
+app.use("/api/profile", profileRoutes);
 
 // Socket.IO handlers
-setupSocketHandlers(io);
 todoHandler(io);
 roomHandler(io);
 

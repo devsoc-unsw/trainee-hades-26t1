@@ -46,7 +46,7 @@ export function FeedbackModal({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="border-[var(--dark-blue)]/15 bg-[var(--light-blue)] shadow-[0_24px_80px_rgba(95,123,147,0.25)]">
+      <AlertDialogContent className="border-(--dark-blue)/15 bg-(--light-blue) shadow-[0_24px_80px_rgba(95,123,147,0.25)]">
         <AlertDialogHeader className="items-center gap-3 text-center">
           <div
             className={`flex h-12 w-12 items-center justify-center rounded-full ${variantStyles[variant]}`}
