@@ -2,12 +2,12 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
-import cors from 'cors';
+import cors from "cors";
 import authRoutes from "./routes/auth.js";
 import testRoutes from "./routes/test.js";
 import roomsRoutes from "./routes/rooms.js";
 import profileRoutes from "./routes/profile.js";
-import { todoHandler, roomHandler } from "./sockets/handlers.js";
+import { roomHandler } from "./sockets/handlers.js";
 
 // Load environment variables
 dotenv.config();
@@ -26,8 +26,8 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
     origin: FRONTEND_URL,
-    methods: ["GET", "POST"]
-  }
+    methods: ["GET", "POST"],
+  },
 });
 
 // Middleware
@@ -40,7 +40,6 @@ app.use("/api/rooms", roomsRoutes);
 app.use("/api/profile", profileRoutes);
 
 // Socket.IO handlers
-todoHandler(io);
 roomHandler(io);
 
 // Start server

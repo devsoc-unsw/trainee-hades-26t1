@@ -79,6 +79,38 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/rooms/:roomId/todos - Get todos for a specific room
+router.get("/:roomId/todos", supabaseAuth, async (req: Request, res: Response) => {
+  try {
+    const { roomId } = req.params;
+    const supabaseClient = req.supabaseClient;
+
+    if (!supabaseClient) {
+      return res.status(500).json({ error: "Supabase client not initialized" });
+    }
+
+    const { data, error } = await supabaseClient
+      .from("todos")
+      .select("*")
+      .eq("room_id", roomId)
+      .single();
+
+    if (error) {
+      // If not found, return null todoState (room may not have todos yet)
+      if (error.code === "PGRST116") {
+        return res.json(null);
+      }
+      console.error("Supabase error:", error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // GET /api/rooms/:roomId - Get a specific room
 router.get("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
   try {

@@ -6,7 +6,7 @@ import PomodoroTimer from "@/components/PomodoroTimer";
 import TodoList from "@/components/TodoList";
 import { PencilLine, Check, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
-import { type Room } from "@/lib/types";
+import { type Room, type TodoState } from "@/lib/types";
 import { supabase } from "@/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ export default function Room() {
   const [data, setData] = useState<Room | null>(null);
   const [createdBy, setCreatedBy] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [todoState, setTodoState] = useState<TodoState | null>(null);
 
   const roomId = String(useParams().id);
   const router = useRouter();
@@ -146,8 +147,40 @@ export default function Room() {
     }
   };
 
+  const getTodoState = async (roomId: string) => {
+    // Fetch todo state from backend using roomId
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error("User not authenticated");
+      }
+
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}/todos`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      if (!resp.ok) {
+        throw new Error("Failed to fetch todo state");
+      }
+      const data = await resp.json();
+      console.log("[RoomPage] Fetched todoState from REST API:", data);
+      setTodoState(data);
+
+    } catch (error) {
+      console.error("[RoomPage] Error fetching todo state:", error);
+      // Don't show error toast for todos - it's optional data
+    }
+  };
+
   useEffect(() => {
     getRoomData(roomId);
+    getTodoState(roomId);
   }, [roomId]);
 
   useEffect(() => {
@@ -174,7 +207,20 @@ export default function Room() {
 
       const socket = initSocket(token, roomId);
 
+      // Handle room state initialization from socket
+      socket.on("room-state", (state: { users: string[], pomodoroState: any, todoState: TodoState | null }) => {
+        console.log("[RoomPage] Received room-state from socket:", state);
+        setTodoState(state.todoState);
+      });
+
+      // Handle real-time todo updates from socket
+      socket.on("todo-updated", (data: { todoState: TodoState }) => {
+        console.log("[RoomPage] Received todo-updated from socket:", data);
+        setTodoState(data.todoState);
+      });
+
       if (socket.connected) {
+        console.log("[RoomPage] Socket already connected, emitting join-room");
         socket.emit("join-room", { roomId: String(roomId), token });
       }
       // if not connected yet, initSocket's internal `connect` listener handles it
@@ -187,6 +233,7 @@ export default function Room() {
       // but don't disconnect — socket is a singleton
       const socket = getSocket();
       socket.off("room-state");
+      socket.off("todo-updated");
       socket.off("error");
     };
   }, [roomId]);
@@ -261,7 +308,7 @@ export default function Room() {
         {/* Productivity Tools (Pomdoro and Todo-List) */}
         <div className="w-full xl:w-1/3 flex flex-col gap-8 p-8">
           <PomodoroTimer />
-          <TodoList />
+          <TodoList roomId={roomId} todoState={todoState} />
           {/* Chat Feature: To-be-implemented? */}
           <div className="flex-1 bg-(--light-blue) border-4 border-(--dark-blue) text-(--dark-blue) rounded-[30px] p-6">
             Welcome to your Study Nook!
