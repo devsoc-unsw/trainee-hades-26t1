@@ -110,6 +110,19 @@ export const roomHandler = (io: Server) => {
       room.users.add(userId);
       socketUsers.set(socket.id, { userId, roomId, token });
 
+      // Update profile to reflect room membership
+      const client = createSupabaseClient(token);
+      const { error: profileError } = await client
+        .from("profiles")
+        .update({ room: roomId })
+        .eq("id", userId);
+
+      if (profileError) {
+        console.error("Error updating profile with room:", profileError);
+        socket.emit("error", { message: "Failed to update profile" });
+        return;
+      }
+
       socket.emit("room-state", {
         users: Array.from(room.users),
         hostId: room.hostId,
@@ -438,6 +451,69 @@ export const roomHandler = (io: Server) => {
         .then(() => {
           console.log(`Updated pomo ${room.pomodoroState?.id} mode to ${mode}`);
         });
+    });
+
+    // Update room details handler
+    socket.on("update-room", async ({ roomId, roomTitle, description, location }) => {
+      const session = socketUsers.get(socket.id);
+      if (!session) {
+        socket.emit("error", { message: "Session not found" });
+        return;
+      }
+
+      const room = roomStates.get(roomId);
+      if (!room) {
+        socket.emit("error", { message: "Room not found" });
+        return;
+      }
+
+      // Validate user is a member of this room
+      const client = createSupabaseClient(session.token);
+      const { data: profileData, error: profileError } = await client
+        .from("profiles")
+        .select("room")
+        .eq("id", session.userId)
+        .single();
+
+      if (profileError || !profileData) {
+        socket.emit("error", { message: "Profile not found" });
+        return;
+      }
+
+      if (profileData.room !== roomId) {
+        socket.emit("error", { message: "You are not a member of this room" });
+        return;
+      }
+
+      // Build update object with only provided fields
+      const updateData: any = {};
+      if (roomTitle !== undefined) updateData.room_title = roomTitle;
+      if (description !== undefined) updateData.description = description;
+      if (location !== undefined) updateData.location = location;
+
+      // Ensure at least one field is provided
+      if (Object.keys(updateData).length === 0) {
+        socket.emit("error", { message: "Please provide at least one field to update" });
+        return;
+      }
+
+      // Update database
+      const { data: updatedRoom, error: updateError } = await client
+        .from("rooms")
+        .update(updateData)
+        .eq("id", roomId)
+        .select("id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at")
+        .single();
+
+      if (updateError || !updatedRoom) {
+        console.error("Error updating room:", updateError);
+        socket.emit("error", { message: "Failed to update room" });
+        return;
+      }
+
+      // Broadcast updated room data to all users in the room
+      io.to(roomId).emit("room-updated", updatedRoom);
+      console.log(`Room ${roomId} updated:`, updatedRoom);
     });
 
     // Disconnect handler

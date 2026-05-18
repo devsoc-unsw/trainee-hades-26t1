@@ -100,33 +100,22 @@ export default function Room() {
     }
   };
 
-  const updateRoomData = async (updatedData: Room) => {
+  const updateRoomData = (updatedData: Room) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      if (!token) {
-        showFeedback("Authentication Error", "User not authenticated. Please log in again.");
+      const socket = getSocket();
+      
+      if (!socket.connected) {
+        showFeedback("Error", "Socket not connected. Please refresh the page.");
         return;
       }
 
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(updatedData),
+      // Emit update-room event with only the fields to update
+      socket.emit("update-room", {
+        roomId,
+        roomTitle: updatedData.roomTitle,
+        description: updatedData.description,
+        location: updatedData.location,
       });
-
-      if (!resp.ok) {
-        const errorResp = await resp.json();
-        showFeedback("Failed to Update Room", errorResp.error || "Could not update room data.");
-        return;
-      }
-
-      const updatedRoom = await resp.json();
-      setData(updatedRoom);
     } catch (error) {
       console.error("Update room data error:", error);
       showFeedback("Error", error instanceof Error ? error.message : "An unknown error occurred");
@@ -202,6 +191,12 @@ export default function Room() {
 
       const socket = initSocket(token, roomId);
 
+      // Listen for room updates from other users or this user
+      socket.on("room-updated", (updatedRoom) => {
+        console.log("Room updated:", updatedRoom);
+        setData(updatedRoom);
+      });
+
       if (socket.connected) {
         socket.emit("join-room", { roomId: String(roomId), token });
       }
@@ -215,6 +210,7 @@ export default function Room() {
       // but don't disconnect — socket is a singleton
       const socket = getSocket();
       socket.off("room-state");
+      socket.off("room-updated");
       socket.off("error");
     };
   }, [roomId]);
