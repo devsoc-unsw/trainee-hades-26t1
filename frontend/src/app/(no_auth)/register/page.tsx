@@ -7,6 +7,7 @@ import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { FeedbackModal } from "@/components/FeedbackModal";
 import { AuthPageShell } from "@/components/AuthPageShell";
 import { supabase } from "@/supabaseClient";
+import { Feedback } from "@/lib/types";
 
 const authFieldClassName =
   "h-10 sm:h-14 w-full rounded-md sm:rounded-lg bg-[#5F7B9340] px-4 sm:px-5 text-sm sm:text-sm outline-none placeholder:text-[#5f7b93]/70";
@@ -19,13 +20,7 @@ export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [feedback, setFeedback] = useState<{
-    open: boolean;
-    title: string;
-    description: string;
-    actionLabel: string;
-    variant: "success" | "error";
-  } | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
 
   const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -64,11 +59,12 @@ export default function Register() {
       });
 
       if (!response.ok) {
+        const errorResp = await response.json();
         setFeedback({
           open: true,
           title: "Registration failed",
           description:
-            "We couldn't create your account. Please check your details and try again.",
+            errorResp.error || "We couldn't create your account. Please check your details and try again.",
           actionLabel: "Try again",
           variant: "error",
         });
@@ -105,7 +101,7 @@ export default function Register() {
 
       // Redirect to home after a short delay
       setTimeout(() => {
-        router.push("/home");
+        router.push("/rooms");
       }, 1000);
     } catch {
       setFeedback({
