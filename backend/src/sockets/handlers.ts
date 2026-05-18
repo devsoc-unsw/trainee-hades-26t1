@@ -164,7 +164,7 @@ export const roomHandler = (io: Server) => {
     );
 
     // Start timer handler
-    socket.on("start-timer", ({ roomId }) => {
+    socket.on("start-timer", async ({ roomId }) => {
       const session = socketUsers.get(socket.id);
       if (!session) {
         socket.emit("error", { message: "Session not found" });
@@ -183,10 +183,40 @@ export const roomHandler = (io: Server) => {
         return;
       }
 
-      // Ensure pomodoroState exists
+      // Initialize pomodoroState if it doesn't exist
       if (!room.pomodoroState) {
-        socket.emit("error", { message: "Pomodo state not initialized" });
-        return;
+        const client = createSupabaseClient(session.token);
+        const defaultDuration = 25 * 60 * 1000; // 25 minutes in ms
+        
+        const { data: newPomo, error: createError } = await client
+          .from("pomos")
+          .insert([
+            {
+              room_id: roomId,
+              duration: defaultDuration,
+              status: "idle",
+              mode: "pomodoro",
+              remaining_time: defaultDuration,
+              end_time: null,
+            },
+          ])
+          .select()
+          .single();
+
+        if (createError || !newPomo) {
+          console.error("Error creating default pomos:", createError);
+          socket.emit("error", { message: "Failed to create timer" });
+          return;
+        }
+
+        room.pomodoroState = {
+          id: newPomo.id,
+          duration: newPomo.duration,
+          status: newPomo.status,
+          mode: newPomo.mode,
+          endTime: newPomo.end_time,
+          remainingTime: newPomo.remaining_time,
+        };
       }
 
       // Calculate endTime: current time + remainingTime (or duration if no remaining)
@@ -219,7 +249,7 @@ export const roomHandler = (io: Server) => {
     });
 
     // Pause timer handler
-    socket.on("pause-timer", ({ roomId }) => {
+    socket.on("pause-timer", async ({ roomId }) => {
       const session = socketUsers.get(socket.id);
       if (!session) {
         socket.emit("error", { message: "Session not found" });
@@ -238,10 +268,40 @@ export const roomHandler = (io: Server) => {
         return;
       }
 
-      // Ensure pomodoroState exists
+      // Initialize pomodoroState if it doesn't exist
       if (!room.pomodoroState) {
-        socket.emit("error", { message: "Pomodo state not initialized" });
-        return;
+        const client = createSupabaseClient(session.token);
+        const defaultDuration = 25 * 60 * 1000;
+        
+        const { data: newPomo, error: createError } = await client
+          .from("pomos")
+          .insert([
+            {
+              room_id: roomId,
+              duration: defaultDuration,
+              status: "idle",
+              mode: "pomodoro",
+              remaining_time: defaultDuration,
+              end_time: null,
+            },
+          ])
+          .select()
+          .single();
+
+        if (createError || !newPomo) {
+          console.error("Error creating default pomos:", createError);
+          socket.emit("error", { message: "Failed to create timer" });
+          return;
+        }
+
+        room.pomodoroState = {
+          id: newPomo.id,
+          duration: newPomo.duration,
+          status: newPomo.status,
+          mode: newPomo.mode,
+          endTime: newPomo.end_time,
+          remainingTime: newPomo.remaining_time,
+        };
       }
 
       // Calculate remainingTime from endTime
@@ -277,7 +337,7 @@ export const roomHandler = (io: Server) => {
     });
 
     // Change pomo mode handler
-    socket.on("change-pomo-mode", ({ roomId, mode }) => {
+    socket.on("change-pomo-mode", async ({ roomId, mode }) => {
       const session = socketUsers.get(socket.id);
       if (!session) {
         socket.emit("error", { message: "Session not found" });
@@ -303,10 +363,45 @@ export const roomHandler = (io: Server) => {
         return;
       }
 
-      // Ensure pomodoroState exists
+      // Initialize pomodoroState if it doesn't exist
       if (!room.pomodoroState) {
-        socket.emit("error", { message: "Pomodo state not initialized" });
-        return;
+        const client = createSupabaseClient(session.token);
+        const modeSettings = {
+          pomodoro: 25 * 60 * 1000,
+          short_break: 5 * 60 * 1000,
+          long_break: 15 * 60 * 1000,
+        };
+        const defaultDuration = modeSettings[mode as keyof typeof modeSettings] || 25 * 60 * 1000;
+        
+        const { data: newPomo, error: createError } = await client
+          .from("pomos")
+          .insert([
+            {
+              room_id: roomId,
+              duration: defaultDuration,
+              status: "idle",
+              mode,
+              remaining_time: defaultDuration,
+              end_time: null,
+            },
+          ])
+          .select()
+          .single();
+
+        if (createError || !newPomo) {
+          console.error("Error creating default pomos:", createError);
+          socket.emit("error", { message: "Failed to create timer" });
+          return;
+        }
+
+        room.pomodoroState = {
+          id: newPomo.id,
+          duration: newPomo.duration,
+          status: newPomo.status,
+          mode: newPomo.mode,
+          endTime: newPomo.end_time,
+          remainingTime: newPomo.remaining_time,
+        };
       }
 
       // Calculate duration based on mode

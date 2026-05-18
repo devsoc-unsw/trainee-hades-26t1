@@ -260,7 +260,7 @@ export default function Room() {
 
         {/* Productivity Tools (Pomdoro and Todo-List) */}
         <div className="w-full xl:w-1/3 flex flex-col gap-8 p-8">
-          <PomodoroTimer />
+          <PomodoroTimer roomId={roomId} />
           <TodoList />
           {/* Chat Feature: To-be-implemented? */}
           <div className="flex-1 bg-(--light-blue) border-4 border-(--dark-blue) text-(--dark-blue) rounded-[30px] p-6">
