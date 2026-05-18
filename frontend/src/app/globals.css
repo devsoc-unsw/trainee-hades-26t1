@@ -1,13 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #d6efff;
   --light-blue: #d6efff;
   --dark-blue: #5f7b93;
   --pastel-yellow: #fffcd6;
+  --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
