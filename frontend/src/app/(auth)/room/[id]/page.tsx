@@ -196,10 +196,10 @@ export default function Room() {
       <Navbar />
       <main className="flex flex-col xl:flex-row min-h-[calc(100vh-64px)] mt-16">
         {/* Room Content */}
-        <div className="w-full xl:w-2/3 flex flex-col items-start p-8 gap-8 h-20">
-          <div className="w-full flex items-center gap-2 text-2xl">
+        <div className="w-full xl:w-2/3 flex flex-col items-start p-8 gap-8">
+          <div className="w-full h-20 flex items-center gap-2 text-2xl">
             {/* Room Title */}
-            <div className="w-full bg-(--dark-blue) text-white font-mono text-2xl tracking-widest px-8 py-5 rounded-xl flex items-center justify-between">
+            <div className="w-full h-full bg-(--dark-blue) text-white font-mono text-2xl tracking-widest px-8 py-5 rounded-xl flex items-center justify-between">
               {isEditing ? (
                 <input
                   autoFocus

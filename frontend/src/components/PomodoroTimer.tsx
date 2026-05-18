@@ -345,10 +345,11 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
               {isRunning ? "Pause" : "Start"}
             </button>
 
-            {isRunning && getNextPhase(currentPhase) !== null && isCurrentUserHost ? (
+            {getNextPhase(currentPhase) !== null ? (
               <button
                 onClick={handleSkip}
-                className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer"
+                disabled={!isRunning || !isCurrentUserHost}
+                className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <SkipForward size={24} fill="var(--dark-blue)" />
               </button>
