@@ -147,8 +147,40 @@ export default function Room() {
     }
   };
 
+  const getTodoState = async (roomId: string) => {
+    // Fetch todo state from backend using roomId
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error("User not authenticated");
+      }
+
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}/todos`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      if (!resp.ok) {
+        throw new Error("Failed to fetch todo state");
+      }
+      const data = await resp.json();
+      console.log("[RoomPage] Fetched todoState from REST API:", data);
+      setTodoState(data);
+
+    } catch (error) {
+      console.error("[RoomPage] Error fetching todo state:", error);
+      // Don't show error toast for todos - it's optional data
+    }
+  };
+
   useEffect(() => {
     getRoomData(roomId);
+    getTodoState(roomId);
   }, [roomId]);
 
   useEffect(() => {
@@ -175,17 +207,20 @@ export default function Room() {
 
       const socket = initSocket(token, roomId);
 
-      // Handle room state initialization
+      // Handle room state initialization from socket
       socket.on("room-state", (state: { users: string[], pomodoroState: any, todoState: TodoState | null }) => {
+        console.log("[RoomPage] Received room-state from socket:", state);
         setTodoState(state.todoState);
       });
 
-      // Handle real-time todo updates
+      // Handle real-time todo updates from socket
       socket.on("todo-updated", (data: { todoState: TodoState }) => {
+        console.log("[RoomPage] Received todo-updated from socket:", data);
         setTodoState(data.todoState);
       });
 
       if (socket.connected) {
+        console.log("[RoomPage] Socket already connected, emitting join-room");
         socket.emit("join-room", { roomId: String(roomId), token });
       }
       // if not connected yet, initSocket's internal `connect` listener handles it

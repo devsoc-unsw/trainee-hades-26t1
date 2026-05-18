@@ -57,6 +57,7 @@ export default function TodoList({ roomId, todoState }: TodoListProps) {
       completed: false,
     };
 
+    // Get current todo id 
     console.log("[TodoList] Emitting add-todo:", { roomId, item: newTodo });
     socket.emit("add-todo", { roomId, item: newTodo });
     setInput("");
