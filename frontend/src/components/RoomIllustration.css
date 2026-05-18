@@ -1,0 +1,22 @@
+.character {
+  width: 128px;
+  height: 150px;
+
+  background-image: url("/assets/girl1_Walk.png");
+  background-repeat: no-repeat;
+  background-size: 1536px 150px;
+  image-rendering: pixelated;
+
+  animation: walk 1s steps(12, end) infinite;
+
+  transform-origin: bottom left;
+}
+
+@keyframes walk {
+  from {
+    background-position: 0px 0;
+  }
+  to {
+    background-position: -1536px 0;
+  }
+}

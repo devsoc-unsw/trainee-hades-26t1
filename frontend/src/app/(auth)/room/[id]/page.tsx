@@ -6,17 +6,22 @@ import PomodoroTimer from "@/components/PomodoroTimer";
 import TodoList from "@/components/TodoList";
 import { PencilLine, Check } from "lucide-react";
 import { useState } from "react";
+import CharacterAnimation from "@/components/CharacterAnimation";
+import { backgrounds } from "@/lib/backgrounds";
+
 
 export default function Room() {
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState("COMP6080 Chapel");
+  const [selectedBg, setSelectedBg] = useState(backgrounds[0]);
+  const [showPicker, setShowPicker] = useState(false);
 
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
       <main className="flex flex-col xl:flex-row min-h-[calc(100vh-64px)] mt-16">
         {/* Room Content */}
-        <div className="w-full xl:w-2/3 flex flex-col items-start p-8 gap-8">
+        <div className="w-full xl:w-2/3 flex flex-col items-start p-8 gap-4">
           {/* Room Title */}
           <div className="w-full bg-(--dark-blue) text-white font-mono text-2xl tracking-widest px-8 py-5 rounded-xl flex items-center justify-between">
             {isEditing ? (
@@ -58,22 +63,48 @@ export default function Room() {
           </div>
 
           {/* Study Nook */}
-          <div className="flex-1 relative w-full min-h-96 bg-(--light-blue) border-4 border-(--dark-blue) rounded-xl overflow-hidden">
+          <div className="flex-1 relative w-full h-100 bg-(--light-blue) border-4 border-(--dark-blue) rounded-xl overflow-hidden">
             <Image
-              src="/studyroom.png"
-              alt="study room image placeholder"
+              src={selectedBg.src}
+              alt="study room background"
               fill
               priority
               className="object-cover"
             />
+            <CharacterAnimation />
+          </div>
+
+          {/* Background picker */}
+          <div className="w-full flex flex-col items-start gap-2">
+            <button
+              onClick={() => setShowPicker(!showPicker)}
+              className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
+            >
+              Background
+            </button>
+
+            {showPicker && (
+              <div className="w-full bg-(--dark-blue) border-2 border-(--dark-blue) rounded-xl p-3 flex gap-2 flex-wrap">
+                {backgrounds.map(b => (
+                  <div key={b.id} className="flex flex-col items-center gap-1">
+                    <img
+                      src={b.src}
+                      alt={b.label}
+                      onClick={() => { setSelectedBg(b); setShowPicker(false); }}
+                      className={`w-20 h-14 object-cover rounded-xl cursor-pointer border-2 ${selectedBg.id === b.id ? "border-white" : "border-transparent hover:border-white/50"}`}
+                    />
+                    <span className="text-white font-mono text-xs">{b.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Productivity Tools (Pomdoro and Todo-List) */}
+        {/* Productivity Tools */}
         <div className="w-full xl:w-1/3 flex flex-col gap-8 p-8">
           <PomodoroTimer />
           <TodoList />
-          {/* Chat Feature: To-be-implemented? */}
           <div className="flex-1 bg-(--light-blue) border-4 border-(--dark-blue) text-(--dark-blue) rounded-[30px] p-6">
             Welcome to your Study Nook!
           </div>
