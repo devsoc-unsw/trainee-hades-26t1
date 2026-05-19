@@ -6,7 +6,7 @@ import Loading from "@/components/Loading";
 import PomodoroTimer from "@/components/PomodoroTimer";
 import TodoList from "@/components/TodoList";
 import { PencilLine, Check, LogOut } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { type Room } from "@/lib/types";
 import { supabase } from "@/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
@@ -28,6 +28,7 @@ export default function Room() {
   const [showCharacterPicker, setShowCharacterPicker] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState(characters[0]);
   const [loading, setLoading] = useState(true);
+  const isInitialLoadRef = useRef(true);
 
   // Feedback modal state
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -182,10 +183,9 @@ export default function Room() {
 
   useEffect(() => {
     if (!isEditing && data) {
-      updateRoomData({ ...data });
+      isInitialLoadRef.current = false;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditing, updateRoomData]);
+  }, [isEditing, data]);
 
   useEffect(() => {
     const reconnect = async () => {
@@ -197,7 +197,6 @@ export default function Room() {
 
       // Listen for room updates from other users or this user
       socket.on("room-updated", (updatedRoom) => {
-        console.log("Room updated:", updatedRoom);
         setData(updatedRoom);
       });
 
@@ -280,7 +279,13 @@ export default function Room() {
                   <Check
                     size={20}
                     className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete flex-shrink-0"
-                    onClick={() => setIsEditing(false)}
+                    onClick={() => {
+                      setIsEditing(false);
+                      // Update room data when user finishes editing
+                      if (data) {
+                        updateRoomData(data);
+                      }
+                    }}
                   />
                 ) : (
                   <PencilLine

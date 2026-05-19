@@ -623,7 +623,6 @@ export const roomHandler = (io: Server) => {
 
       // Broadcast updated room data to all users in the room
       io.to(roomId).emit("room-updated", updatedRoom);
-      console.log(`Room ${roomId} updated:`, updatedRoom);
     });
 
     // ---------------- DISCONNECT ----------------

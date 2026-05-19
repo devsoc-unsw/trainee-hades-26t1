@@ -35,13 +35,10 @@ export default function Navbar() {
   // obtain the last
   useEffect(() => {
     const fetchLastRoom = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) return;
 
-      if (!user) {
-        return
-      }
-
-      const { data } = await supabase.from("profiles").select("room").eq("id", user.id).single()
+      const { data } = await supabase.from("profiles").select("room").eq("id", session.user.id).single()
 
       if (data) {
         setLastRoomId(data.room)
