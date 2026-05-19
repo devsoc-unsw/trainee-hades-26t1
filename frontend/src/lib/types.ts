@@ -13,4 +13,10 @@ export type Room = {
   location: string;
   createdAt: string;
   createdBy: string;
+  backgroundId?: string;
+};
+
+export type RoomUser = {
+  userId: string;
+  name: string;
 };

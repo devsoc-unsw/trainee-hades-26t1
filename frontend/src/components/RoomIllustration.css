@@ -1,0 +1,26 @@
+.character-base {
+  width: 128px;
+  height: 150px;
+  background-repeat: no-repeat;
+  background-size: 1536px 150px;
+  image-rendering: pixelated;
+  animation: walk 1s steps(12, end) infinite;
+  transform-origin: bottom left;
+}
+
+.girl1 {
+  background-image: url("/assets/girl1_Walk.png");
+}
+
+.girl2 {
+  background-image: url("/assets/girl2_Walk.png");
+}
+
+.girl3 {
+  background-image: url("/assets/girl3_Walk.png");
+}
+
+@keyframes walk {
+  from { background-position: 0px 0; }
+  to   { background-position: -1536px 0; }
+}
