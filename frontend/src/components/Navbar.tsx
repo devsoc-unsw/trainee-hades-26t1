@@ -77,7 +77,6 @@ export default function Navbar() {
           <button
             onClick={async () => {
               await supabase.auth.signOut();
-
               router.push("/")
             }}
             className={`${linkStyles} ${inactiveStyles} cursor-pointer`}>
@@ -106,7 +105,7 @@ export default function Navbar() {
 
       {/* Mobile dropdown menu */}
       <div
-        className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${menuOpen ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+        className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${menuOpen ? "max-h-64 opacity-100" : "max-h-0 opacity-0"
           }`}
       >
         <div className="flex flex-col px-6 py-6 gap-2 border-(--dark-blue)">
@@ -123,6 +122,15 @@ export default function Navbar() {
               {label}
             </Link>
           ))}
+          {/* sign out button */}
+          <p
+            onClick={async () => {
+              await supabase.auth.signOut();
+              router.push("/")
+            }}
+            className={`${linkStyles} ${inactiveStyles} cursor-pointer`}>
+            Sign Out
+          </p>
         </div>
       </div>
     </nav>
