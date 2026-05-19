@@ -18,6 +18,6 @@ export const characters: Character[] = [
   {
     id: "girl3",
     label: "School Girl",
-    src: "/assets/girl3_walk.png",
+    src: "/assets/girl3_Walk.png",
   },
 ];
