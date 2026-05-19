@@ -235,10 +235,11 @@ export default function Room() {
       ) : (
         <main className="flex flex-col xl:flex-row min-h-[calc(100vh-64px)] mt-16">
           {/* Room Content */}
-          <div className="w-full xl:w-2/3 flex flex-col items-start p-8 gap-4">
+          <div className="w-full xl:w-2/3 flex flex-col items-start p-4 sm:p-6 xl:p-8 gap-3 sm:gap-4">
+
             {/* Title Row */}
-            <div className="w-full flex items-center gap-2 text-2xl">
-              <div className="w-full bg-(--dark-blue) text-white font-mono text-2xl tracking-widest px-8 py-5 rounded-xl flex items-center justify-between">
+            <div className="w-full flex items-center gap-2">
+              <div className="w-full bg-(--dark-blue) text-white font-mono text-base sm:text-xl xl:text-2xl tracking-widest px-4 sm:px-6 xl:px-8 py-3 sm:py-4 xl:py-5 rounded-xl flex items-center justify-between">
                 {isEditing ? (
                   <input
                     autoFocus
@@ -251,19 +252,19 @@ export default function Room() {
                     className="bg-transparent border-b border-white/50 outline-none w-full"
                   />
                 ) : (
-                  <span>{data?.roomTitle}</span>
+                  <span className="truncate pr-2">{data?.roomTitle}</span>
                 )}
 
                 {isEditing ? (
                   <Check
-                    size={24}
-                    className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete"
+                    size={20}
+                    className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete flex-shrink-0"
                     onClick={() => setIsEditing(false)}
                   />
                 ) : (
                   <PencilLine
-                    size={24}
-                    className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete"
+                    size={20}
+                    className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete flex-shrink-0"
                     onClick={() => setIsEditing(true)}
                   />
                 )}
@@ -271,22 +272,22 @@ export default function Room() {
               <Button
                 onClick={handleLeaveRoom}
                 variant="outline"
-                className="flex items-center min-w-16 h-full text-3xl cursor-pointer"
+                className="flex items-center min-w-10 sm:min-w-14 h-full cursor-pointer flex-shrink-0"
               >
-                <LogOut size={24} />
+                <LogOut size={20} />
               </Button>
             </div>
 
             {/* Author and Room Description */}
-            <div className="flex flex-row w-full gap-6 text-(--dark-blue) justify-between items-center">
-              <div className="font-mono text-md">{data?.description || ""}</div>
-              <div className="bg-(--pastel-yellow) border-2 border-(--dark-blue) rounded-xl p-2">
+            <div className="flex flex-col sm:flex-row w-full gap-2 sm:gap-6 text-(--dark-blue) sm:justify-between sm:items-center">
+              <div className="font-mono text-sm">{data?.description || ""}</div>
+              <div className="bg-(--pastel-yellow) border-2 border-(--dark-blue) rounded-xl p-2 text-sm self-start sm:self-auto whitespace-nowrap">
                 Created by: <span className="font-semibold">{createdBy || "Unknown"}</span>
               </div>
             </div>
 
-            {/* Study Nook */}
-            <div className="flex-1 relative w-full h-100 bg-(--light-blue) border-4 border-(--dark-blue) rounded-xl overflow-hidden">
+            {/* Study Nook — fixed height on mobile, flex-1 on xl */}
+            <div className="relative w-full h-[220px] sm:h-[300px] xl:h-auto xl:flex-1 bg-(--light-blue) border-4 border-(--dark-blue) rounded-xl overflow-hidden">
               <Image
                 src={selectedBg.src}
                 alt="study room background"
@@ -298,7 +299,7 @@ export default function Room() {
             </div>
 
             {/* Picker Row */}
-            <div className="flex gap-6 items-start justify-start">
+            <div className="flex flex-wrap gap-3 items-start justify-start w-full">
               {/* Background picker */}
               <div className="flex items-start gap-2">
                 <button
@@ -309,16 +310,16 @@ export default function Room() {
                 </button>
 
                 {showPicker && (
-                  <div className="bg-(--dark-blue) border-2 border-(--dark-blue) rounded-xl p-3 flex gap-2 flex-wrap">
+                  <div className="bg-(--dark-blue) border-2 border-(--dark-blue) rounded-xl p-3 flex gap-2 flex-wrap max-w-[260px] sm:max-w-none">
                     {backgrounds.map(b => (
-                      <div key={b.id} className="flex flex-row items-center gap-1">
+                      <div key={b.id} className="flex flex-col items-center gap-1">
                         <Image
                           src={b.src}
                           alt={b.label}
                           width={80}
                           height={56}
                           onClick={() => handleBgChange(b)}
-                          className={`w-20 h-14 object-cover rounded-xl cursor-pointer border-2 ${
+                          className={`w-16 sm:w-20 h-12 sm:h-14 object-cover rounded-xl cursor-pointer border-2 ${
                             selectedBg.id === b.id ? "border-white" : "border-transparent hover:border-white/50"
                           }`}
                         />
@@ -338,12 +339,12 @@ export default function Room() {
               </button>
 
               {showCharacterPicker && (
-                <div className="w-full bg-(--dark-blue) border-2 rounded-xl p-3 flex gap-2">
+                <div className="w-full bg-(--dark-blue) border-2 rounded-xl p-3 flex gap-2 flex-wrap">
                   {characters.map(c => (
-                    <div key={c.id} className="flex flex-row items-start gap-1">
+                    <div key={c.id} className="flex flex-col items-center gap-1">
                       <div
                         onClick={() => handleCharacterChange(c)}
-                        className={`w-16 h-20 rounded cursor-pointer border-2 flex-shrink-0 ${
+                        className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 flex-shrink-0 ${
                           selectedCharacter.id === c.id
                             ? "border-white"
                             : "border-transparent"
@@ -365,7 +366,7 @@ export default function Room() {
           </div>
 
           {/* Productivity Tools */}
-          <div className="w-full xl:w-1/3 flex flex-col gap-8 p-8">
+          <div className="w-full xl:w-1/3 flex flex-col gap-6 xl:gap-8 p-4 sm:p-6 xl:p-8">
             <PomodoroTimer />
             <TodoList />
             <div className="flex-1 bg-(--light-blue) border-4 border-(--dark-blue) text-(--dark-blue) rounded-[30px] p-6">

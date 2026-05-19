@@ -21,13 +21,19 @@ export default function CharacterAnimation({ users }: Props) {
     return () => observer.disconnect();
   }, []);
 
+  const scale = size.w > 0 ? Math.min(1, size.w / 800) : 1;
   const { characters } = useAutoWander(size.w, size.h, users);
 
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden">
-      {characters.map(c => (
-        <Character key={c.id} {...c} />
-      ))}
+      <div
+        className="absolute inset-0"
+        style={{ transform: `scale(${scale})`, transformOrigin: "bottom left" }}
+      >
+        {characters.map(c => (
+          <Character key={c.id} {...c} />
+        ))}
+      </div>
     </div>
   );
 }
