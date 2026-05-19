@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import Loading from "@/components/Loading";
 import PomodoroTimer from "@/components/PomodoroTimer";
 import TodoList from "@/components/TodoList";
+import ChatBox from "@/components/ChatBox";
 import { PencilLine, Check, LogOut } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { type Room } from "@/lib/types";
@@ -369,9 +370,7 @@ export default function Room() {
           <div className="w-full xl:w-1/3 flex flex-col gap-6 xl:gap-8 p-4 sm:p-6 xl:p-8">
             <PomodoroTimer />
             <TodoList />
-            <div className="flex-1 bg-(--light-blue) border-4 border-(--dark-blue) text-(--dark-blue) rounded-[30px] p-6">
-              Welcome to your Study Nook!
-            </div>
+            <ChatBox roomId={roomId} roomUsers={roomUsers} />
           </div>
         </main>
       )}
