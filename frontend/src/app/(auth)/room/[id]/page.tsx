@@ -46,13 +46,15 @@ export default function Room() {
 
   const getRoomData = async (roomId: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) throw new Error("User not authenticated");
 
       const resp = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`,
-        { method: "GET", headers: { Authorization: `Bearer ${token}` } }
+        { method: "GET", headers: { Authorization: `Bearer ${token}` } },
       );
       if (!resp.ok) throw new Error("Failed to fetch room data");
 
@@ -67,13 +69,15 @@ export default function Room() {
 
   const getUserProfile = async (userId: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) throw new Error("User not authenticated");
 
       const resp = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile/${userId}`,
-        { method: "GET", headers: { Authorization: `Bearer ${token}` } }
+        { method: "GET", headers: { Authorization: `Bearer ${token}` } },
       );
       if (!resp.ok) throw new Error("Failed to fetch user profile");
 
@@ -84,39 +88,46 @@ export default function Room() {
     }
   };
 
-  const updateRoomData = useCallback(async (updatedData: Room) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error("User not authenticated");
+  const updateRoomData = useCallback(
+    async (updatedData: Room) => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) throw new Error("User not authenticated");
 
-      const resp = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+        const resp = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(updatedData),
           },
-          body: JSON.stringify(updatedData),
+        );
+
+        if (!resp.ok) {
+          const errorResp = await resp.json();
+          throw new Error(errorResp.error || "Failed to update room data");
         }
-      );
 
-      if (!resp.ok) {
-        const errorResp = await resp.json();
-        throw new Error(errorResp.error || "Failed to update room data");
+        const updatedRoom = await resp.json();
+        setData(updatedRoom);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Unknown error");
       }
-
-      const updatedRoom = await resp.json();
-      setData(updatedRoom);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unknown error");
-    }
-  }, [roomId]);
+    },
+    [roomId],
+  );
 
   const handleLeaveRoom = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const token = session?.access_token;
       const currentUserId = session?.user.id;
       if (!token || !currentUserId) throw new Error("User not authenticated");
@@ -133,7 +144,7 @@ export default function Room() {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ room: null }),
-        }
+        },
       );
 
       if (!clearRoomResp.ok) {
@@ -144,11 +155,13 @@ export default function Room() {
       toast.success("Left room successfully");
       router.push("/rooms");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to leave room");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to leave room",
+      );
     }
   };
 
-  const handleBgChange = (bg: typeof backgrounds[0]) => {
+  const handleBgChange = (bg: (typeof backgrounds)[0]) => {
     setSelectedBg(bg);
     setShowPicker(false);
     const socket = getSocket();
@@ -176,7 +189,9 @@ export default function Room() {
 
   useEffect(() => {
     const reconnect = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) return;
 
@@ -186,32 +201,38 @@ export default function Room() {
         socket.emit("join-room", { roomId, token });
       }
 
-      socket.on("room-state", (state: {
-        users: RoomUser[];
-        backgroundId?: string;
-      }) => {
-        setRoomUsers(state.users);
-        if (state.backgroundId) {
-          const bg = backgrounds.find(b => b.id === state.backgroundId);
-          if (bg) setSelectedBg(bg);
-        }
-      });
+      socket.on(
+        "room-state",
+        (state: { users: RoomUser[]; backgroundId?: string }) => {
+          setRoomUsers(state.users);
+          if (state.backgroundId) {
+            const bg = backgrounds.find((b) => b.id === state.backgroundId);
+            if (bg) setSelectedBg(bg);
+          }
+        },
+      );
 
-      socket.on("user-joined", ({ userId, name }: { userId: string; name: string }) => {
-        setRoomUsers(prev => {
-          if (prev.find(u => u.userId === userId)) return prev;
-          return [...prev, { userId, name }];
-        });
-      });
+      socket.on(
+        "user-joined",
+        ({ userId, name }: { userId: string; name: string }) => {
+          setRoomUsers((prev) => {
+            if (prev.find((u) => u.userId === userId)) return prev;
+            return [...prev, { userId, name }];
+          });
+        },
+      );
 
       socket.on("user-left", ({ userId }: { userId: string }) => {
-        setRoomUsers(prev => prev.filter(u => u.userId !== userId));
+        setRoomUsers((prev) => prev.filter((u) => u.userId !== userId));
       });
 
-      socket.on("background-updated", ({ backgroundId }: { backgroundId: string }) => {
-        const bg = backgrounds.find(b => b.id === backgroundId);
-        if (bg) setSelectedBg(bg);
-      });
+      socket.on(
+        "background-updated",
+        ({ backgroundId }: { backgroundId: string }) => {
+          const bg = backgrounds.find((b) => b.id === backgroundId);
+          if (bg) setSelectedBg(bg);
+        },
+      );
     };
 
     reconnect();
@@ -237,7 +258,6 @@ export default function Room() {
         <main className="flex flex-col xl:flex-row min-h-[calc(100vh-64px)] mt-16">
           {/* Room Content */}
           <div className="w-full xl:w-2/3 flex flex-col items-start p-4 sm:p-6 xl:p-8 gap-3 sm:gap-4">
-
             {/* Title Row */}
             <div className="w-full flex items-center gap-2">
               <div className="w-full bg-(--dark-blue) text-white font-mono text-base sm:text-xl xl:text-2xl tracking-widest px-4 sm:px-6 xl:px-8 py-3 sm:py-4 xl:py-5 rounded-xl flex items-center justify-between">
@@ -246,7 +266,9 @@ export default function Room() {
                     autoFocus
                     value={data?.roomTitle || ""}
                     onChange={(e) =>
-                      setData(prev => prev ? { ...prev, roomTitle: e.target.value } : prev)
+                      setData((prev) =>
+                        prev ? { ...prev, roomTitle: e.target.value } : prev,
+                      )
                     }
                     maxLength={30}
                     onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
@@ -259,13 +281,13 @@ export default function Room() {
                 {isEditing ? (
                   <Check
                     size={20}
-                    className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete flex-shrink-0"
+                    className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete shrink-0"
                     onClick={() => setIsEditing(false)}
                   />
                 ) : (
                   <PencilLine
                     size={20}
-                    className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete flex-shrink-0"
+                    className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete hrink-0"
                     onClick={() => setIsEditing(true)}
                   />
                 )}
@@ -273,7 +295,7 @@ export default function Room() {
               <Button
                 onClick={handleLeaveRoom}
                 variant="outline"
-                className="flex items-center min-w-10 sm:min-w-14 h-full cursor-pointer flex-shrink-0"
+                className="flex items-center min-w-10 sm:min-w-14 h-full cursor-pointer shrink-0"
               >
                 <LogOut size={20} />
               </Button>
@@ -283,12 +305,13 @@ export default function Room() {
             <div className="flex flex-col sm:flex-row w-full gap-2 sm:gap-6 text-(--dark-blue) sm:justify-between sm:items-center">
               <div className="font-mono text-sm">{data?.description || ""}</div>
               <div className="bg-(--pastel-yellow) border-2 border-(--dark-blue) rounded-xl p-2 text-sm self-start sm:self-auto whitespace-nowrap">
-                Created by: <span className="font-semibold">{createdBy || "Unknown"}</span>
+                Created by:{" "}
+                <span className="font-semibold">{createdBy || "Unknown"}</span>
               </div>
             </div>
 
             {/* Study Nook — fixed height on mobile, flex-1 on xl */}
-            <div className="relative w-full h-[220px] sm:h-[300px] xl:h-auto xl:flex-1 bg-(--light-blue) border-4 border-(--dark-blue) rounded-xl overflow-hidden">
+            <div className="relative w-full h-55 sm:h-75 xl:h-auto xl:flex-1 bg-(--light-blue) border-4 border-(--dark-blue) rounded-xl overflow-hidden">
               <Image
                 src={selectedBg.src}
                 alt="study room background"
@@ -311,9 +334,12 @@ export default function Room() {
                 </button>
 
                 {showPicker && (
-                  <div className="bg-(--dark-blue) border-2 border-(--dark-blue) rounded-xl p-3 flex gap-2 flex-wrap max-w-[260px] sm:max-w-none">
-                    {backgrounds.map(b => (
-                      <div key={b.id} className="flex flex-col items-center gap-1">
+                  <div className="bg-(--dark-blue) border-2 border-(--dark-blue) rounded-xl p-3 flex gap-2 flex-wrap max-w-65 sm:max-w-none">
+                    {backgrounds.map((b) => (
+                      <div
+                        key={b.id}
+                        className="flex flex-col items-center gap-1"
+                      >
                         <Image
                           src={b.src}
                           alt={b.label}
@@ -321,10 +347,14 @@ export default function Room() {
                           height={56}
                           onClick={() => handleBgChange(b)}
                           className={`w-16 sm:w-20 h-12 sm:h-14 object-cover rounded-xl cursor-pointer border-2 ${
-                            selectedBg.id === b.id ? "border-white" : "border-transparent hover:border-white/50"
+                            selectedBg.id === b.id
+                              ? "border-white"
+                              : "border-transparent hover:border-white/50"
                           }`}
                         />
-                        <span className="text-white font-mono text-xs">{b.label}</span>
+                        <span className="text-white font-mono text-xs">
+                          {b.label}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -333,7 +363,7 @@ export default function Room() {
 
               {/* Character picker */}
               <button
-                onClick={() => setShowCharacterPicker(v => !v)}
+                onClick={() => setShowCharacterPicker((v) => !v)}
                 className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
               >
                 Character
@@ -341,11 +371,14 @@ export default function Room() {
 
               {showCharacterPicker && (
                 <div className="w-full bg-(--dark-blue) border-2 rounded-xl p-3 flex gap-2 flex-wrap">
-                  {characters.map(c => (
-                    <div key={c.id} className="flex flex-col items-center gap-1">
+                  {characters.map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex flex-col items-center gap-1"
+                    >
                       <div
                         onClick={() => handleCharacterChange(c)}
-                        className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 flex-shrink-0 ${
+                        className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 shrink-0 ${
                           selectedCharacter.id === c.id
                             ? "border-white"
                             : "border-transparent"
@@ -366,7 +399,7 @@ export default function Room() {
             </div>
           </div>
 
-          {/* Productivity Tools */}
+          {/* Chat Box! */}
           <div className="w-full xl:w-1/3 flex flex-col gap-6 xl:gap-8 p-4 sm:p-6 xl:p-8">
             <PomodoroTimer />
             <TodoList />
