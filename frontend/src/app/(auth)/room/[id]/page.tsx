@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Navbar from "@/components/Navbar";
+import Loading from "@/components/Loading";
 import PomodoroTimer from "@/components/PomodoroTimer";
 import TodoList from "@/components/TodoList";
 import { PencilLine, Check, LogOut } from "lucide-react";
@@ -26,8 +27,9 @@ export default function Room() {
   const [roomUsers, setRoomUsers] = useState<RoomUser[]>([]);
   const [showCharacterPicker, setShowCharacterPicker] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState(characters[0]);
-  const roomId = String(useParams().id);
+  const [loading, setLoading] = useState(true);
 
+  const roomId = String(useParams().id);
   const router = useRouter();
 
   const handleCharacterChange = (c: Character) => {
@@ -57,6 +59,8 @@ export default function Room() {
       setData(roomData);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -224,146 +228,152 @@ export default function Room() {
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
-      <main className="flex flex-col xl:flex-row min-h-[calc(100vh-64px)] mt-16">
-        {/* Room Content */}
-        <div className="w-full xl:w-2/3 flex flex-col items-start p-8 gap-4">
-          <div className="w-full flex items-center gap-2 text-2xl">
-            {/* Room Title */}
-            <div className="w-full bg-(--dark-blue) text-white font-mono text-2xl tracking-widest px-8 py-5 rounded-xl flex items-center justify-between">
-              {isEditing ? (
-                <input
-                  autoFocus
-                  value={data?.roomTitle || ""}
-                  onChange={(e) =>
-                    setData(prev => prev ? { ...prev, roomTitle: e.target.value } : prev)
-                  }
-                  maxLength={30}
-                  onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
-                  className="bg-transparent border-b border-white/50 outline-none w-full"
-                />
-              ) : (
-                <span>{data?.roomTitle}</span>
-              )}
+      {loading ? (
+        <main className="flex items-center justify-center min-h-[calc(100vh-64px)] mt-16">
+          <Loading />
+        </main>
+      ) : (
+        <main className="flex flex-col xl:flex-row min-h-[calc(100vh-64px)] mt-16">
+          {/* Room Content */}
+          <div className="w-full xl:w-2/3 flex flex-col items-start p-8 gap-4">
+            {/* Title Row */}
+            <div className="w-full flex items-center gap-2 text-2xl">
+              <div className="w-full bg-(--dark-blue) text-white font-mono text-2xl tracking-widest px-8 py-5 rounded-xl flex items-center justify-between">
+                {isEditing ? (
+                  <input
+                    autoFocus
+                    value={data?.roomTitle || ""}
+                    onChange={(e) =>
+                      setData(prev => prev ? { ...prev, roomTitle: e.target.value } : prev)
+                    }
+                    maxLength={30}
+                    onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
+                    className="bg-transparent border-b border-white/50 outline-none w-full"
+                  />
+                ) : (
+                  <span>{data?.roomTitle}</span>
+                )}
 
-              {isEditing ? (
-                <Check
-                  size={24}
-                  className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete"
-                  onClick={() => setIsEditing(false)}
-                />
-              ) : (
-                <PencilLine
-                  size={24}
-                  className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete"
-                  onClick={() => setIsEditing(true)}
-                />
-              )}
+                {isEditing ? (
+                  <Check
+                    size={24}
+                    className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete"
+                    onClick={() => setIsEditing(false)}
+                  />
+                ) : (
+                  <PencilLine
+                    size={24}
+                    className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete"
+                    onClick={() => setIsEditing(true)}
+                  />
+                )}
+              </div>
+              <Button
+                onClick={handleLeaveRoom}
+                variant="outline"
+                className="flex items-center min-w-16 h-full text-3xl cursor-pointer"
+              >
+                <LogOut size={24} />
+              </Button>
             </div>
-            <Button
-              onClick={handleLeaveRoom}
-              variant="outline"
-              className="flex items-center min-w-16 h-full text-3xl cursor-pointer"
-            >
-              <LogOut size={24} />
-            </Button>
-          </div>
 
-          {/* Author and Room Description */}
-          <div className="flex flex-row w-full gap-6 text-(--dark-blue) justify-between items-center">
-            <div className="font-mono text-md">{data?.description || ""}</div>
-            <div className="bg-(--pastel-yellow) border-2 border-(--dark-blue) rounded-xl p-2">
-              Created by: <span className="font-semibold">{createdBy || "Unknown"}</span>
+            {/* Author and Room Description */}
+            <div className="flex flex-row w-full gap-6 text-(--dark-blue) justify-between items-center">
+              <div className="font-mono text-md">{data?.description || ""}</div>
+              <div className="bg-(--pastel-yellow) border-2 border-(--dark-blue) rounded-xl p-2">
+                Created by: <span className="font-semibold">{createdBy || "Unknown"}</span>
+              </div>
             </div>
-          </div>
 
-          {/* Study Nook */}
-          <div className="flex-1 relative w-full h-100 bg-(--light-blue) border-4 border-(--dark-blue) rounded-xl overflow-hidden">
-            <Image
-              src={selectedBg.src}
-              alt="study room background"
-              fill
-              priority
-              className="object-cover"
-            />
-            <CharacterAnimation users={roomUsers} />
-          </div>
+            {/* Study Nook */}
+            <div className="flex-1 relative w-full h-100 bg-(--light-blue) border-4 border-(--dark-blue) rounded-xl overflow-hidden">
+              <Image
+                src={selectedBg.src}
+                alt="study room background"
+                fill
+                priority
+                className="object-cover"
+              />
+              <CharacterAnimation users={roomUsers} />
+            </div>
 
-          {/* Picker Row */}
-          <div className="flex gap-6 items-start justify-start">
-            {/* Background picker */}
-            <div className="flex items-start gap-2">
+            {/* Picker Row */}
+            <div className="flex gap-6 items-start justify-start">
+              {/* Background picker */}
+              <div className="flex items-start gap-2">
+                <button
+                  onClick={() => setShowPicker(!showPicker)}
+                  className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
+                >
+                  Background
+                </button>
+
+                {showPicker && (
+                  <div className="bg-(--dark-blue) border-2 border-(--dark-blue) rounded-xl p-3 flex gap-2 flex-wrap">
+                    {backgrounds.map(b => (
+                      <div key={b.id} className="flex flex-row items-center gap-1">
+                        <Image
+                          src={b.src}
+                          alt={b.label}
+                          width={80}
+                          height={56}
+                          onClick={() => handleBgChange(b)}
+                          className={`w-20 h-14 object-cover rounded-xl cursor-pointer border-2 ${
+                            selectedBg.id === b.id ? "border-white" : "border-transparent hover:border-white/50"
+                          }`}
+                        />
+                        <span className="text-white font-mono text-xs">{b.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Character picker */}
               <button
-                onClick={() => setShowPicker(!showPicker)}
+                onClick={() => setShowCharacterPicker(v => !v)}
                 className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
               >
-                Background
+                Character
               </button>
 
-              {showPicker && (
-                <div className="bg-(--dark-blue) border-2 border-(--dark-blue) rounded-xl p-3 flex gap-2 flex-wrap">
-                  {backgrounds.map(b => (
-                    <div key={b.id} className="flex flex-row items-center gap-1">
-                      <Image
-                        src={b.src}
-                        alt={b.label}
-                        width={80}
-                        height={56}
-                        onClick={() => handleBgChange(b)}
-                        className={`w-20 h-14 object-cover rounded-xl cursor-pointer border-2 ${
-                          selectedBg.id === b.id ? "border-white" : "border-transparent hover:border-white/50"
+              {showCharacterPicker && (
+                <div className="w-full bg-(--dark-blue) border-2 rounded-xl p-3 flex gap-2">
+                  {characters.map(c => (
+                    <div key={c.id} className="flex flex-row items-start gap-1">
+                      <div
+                        onClick={() => handleCharacterChange(c)}
+                        className={`w-16 h-20 rounded cursor-pointer border-2 flex-shrink-0 ${
+                          selectedCharacter.id === c.id
+                            ? "border-white"
+                            : "border-transparent"
                         }`}
+                        style={{
+                          backgroundImage: `url(${c.src})`,
+                          backgroundRepeat: "no-repeat",
+                          backgroundSize: "auto 100%",
+                          backgroundPosition: "0px 0px",
+                          imageRendering: "pixelated",
+                        }}
                       />
-                      <span className="text-white font-mono text-xs">{b.label}</span>
+                      <span className="text-white text-xs">{c.label}</span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-
-            {/* Character picker */}
-            <button
-              onClick={() => setShowCharacterPicker(v => !v)}
-              className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
-            >
-              Character
-            </button>
-
-            {showCharacterPicker && (
-              <div className="w-full bg-(--dark-blue) border-2 rounded-xl p-3 flex gap-2">
-                {characters.map(c => (
-                  <div key={c.id} className="flex flex-row items-start gap-1">
-                    <div
-                      onClick={() => handleCharacterChange(c)}
-                      className={`w-16 h-20 rounded cursor-pointer border-2 flex-shrink-0 ${
-                        selectedCharacter.id === c.id
-                          ? "border-white"
-                          : "border-transparent"
-                      }`}
-                      style={{
-                        backgroundImage: `url(${c.src})`,
-                        backgroundRepeat: "no-repeat",
-                        backgroundSize: "auto 100%",
-                        backgroundPosition: "0px 0px",
-                        imageRendering: "pixelated",
-                      }}
-                    />
-                    <span className="text-white text-xs">{c.label}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
-        </div>
 
-        {/* Productivity Tools */}
-        <div className="w-full xl:w-1/3 flex flex-col gap-8 p-8">
-          <PomodoroTimer />
-          <TodoList />
-          <div className="flex-1 bg-(--light-blue) border-4 border-(--dark-blue) text-(--dark-blue) rounded-[30px] p-6">
-            Welcome to your Study Nook!
+          {/* Productivity Tools */}
+          <div className="w-full xl:w-1/3 flex flex-col gap-8 p-8">
+            <PomodoroTimer />
+            <TodoList />
+            <div className="flex-1 bg-(--light-blue) border-4 border-(--dark-blue) text-(--dark-blue) rounded-[30px] p-6">
+              Welcome to your Study Nook!
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
+      )}
     </div>
   );
 }
