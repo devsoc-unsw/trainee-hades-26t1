@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { SkipForward, Settings, X, Save } from "lucide-react";
+import { SkipForward, Settings, X, Save, ChevronUp, Clock } from "lucide-react";
 
 type Phase = "pomo" | "short" | "long";
 
@@ -12,6 +12,7 @@ export default function PomodoroTimer() {
   const [isRunning, setIsRunning] = useState(false);
   const [pomoCount, setPomoCount] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const [durations, setDurations] = useState({
     pomo: 25,
@@ -89,7 +90,35 @@ export default function PomodoroTimer() {
   }, [isRunning, minutes, seconds, durations]);
 
   return (
-    <div className="w-full bg-(--light-blue) rounded-[30px] border-4 border-(--dark-blue) p-4 sm:p-6 lg:p-8 flex flex-col items-center justify-center gap-4 lg:gap-6">
+    <div
+      className={`w-full bg-(--light-blue) rounded-[30px] border-4 border-(--dark-blue) p-4 sm:p-6 lg:p-8 flex flex-col items-center justify-center transition-[gap] duration-300 ease-in-out ${
+        isCollapsed ? "gap-0" : "gap-4 lg:gap-6"
+      }`}
+    >
+      <div className="relative flex items-center justify-center w-full">
+        <h2 className="text-(--dark-blue) font-(family-name:--font-pixelify) font-bold text-lg tracking-widest text-center flex items-center gap-2">
+          <Clock size={20} />
+          Timer
+        </h2>
+        <button
+          onClick={() => setIsCollapsed((c) => !c)}
+          className="absolute right-0 text-(--dark-blue) hover:opacity-50 cursor-pointer"
+        >
+          <ChevronUp
+            size={20}
+            className={`transition-transform duration-300 ease-in-out ${
+              isCollapsed ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+      </div>
+
+      <div
+        className={`w-full overflow-hidden transition-[max-height] duration-300 ease-in-out ${
+          isCollapsed ? "max-h-0" : "max-h-150"
+        }`}
+      >
+        <div className="flex flex-col items-center justify-center gap-4 lg:gap-6 pb-1">
       {showSettings ? (
         /* Settings panel */
         <div className="flex flex-col w-full gap-4">
@@ -242,6 +271,8 @@ export default function PomodoroTimer() {
           </div>
         </>
       )}
+        </div>
+      </div>
     </div>
   );
 }
