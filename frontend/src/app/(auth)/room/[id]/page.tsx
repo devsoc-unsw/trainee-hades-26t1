@@ -258,7 +258,7 @@ export default function Room() {
           <div className="w-full xl:w-2/3 flex flex-col items-start p-4 sm:p-6 xl:p-8 gap-3 sm:gap-4">
 
             {/* Title Row */}
-            <div className="w-full flex items-center gap-2">
+            <div className="w-full flex items-center gap-2 h-12 sm:h-16">
               <div className="w-full bg-(--dark-blue) text-white font-mono text-base sm:text-xl xl:text-2xl tracking-widest px-4 sm:px-6 xl:px-8 py-3 sm:py-4 xl:py-5 rounded-xl flex items-center justify-between">
                 {isEditing ? (
                   <input
