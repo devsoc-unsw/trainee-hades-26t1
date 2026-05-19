@@ -133,8 +133,9 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
     };
 
     const handleError = (data: { message: string }) => {
-      // Suppress "Session not found" errors as they occur when leaving the room
-      if (data.message !== "Session not found") {
+      // Suppress expected errors that occur during normal operation
+      const suppressedErrors = ["Session not found", "Only host can control timer"];
+      if (!suppressedErrors.includes(data.message)) {
         console.error("Socket error:", data.message);
       }
     };
@@ -215,6 +216,9 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
   };
 
   const handleSkip = () => {
+    // Only host can skip/advance timer
+    if (!state.isCurrentUserHost) return;
+
     const next = getNextPhase(currentPhase);
     if (!next) return;
 
@@ -268,6 +272,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
 
       if (remaining <= 0) {
         // Timer finished, will be updated via socket
+        handleSkip();
         return;
       }
 
