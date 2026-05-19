@@ -259,10 +259,37 @@ export default function Rooms() {
         });
       }, 10000);
 
-      socket.once("room-state", (data) => {
+      socket.once("room-state", async (data) => {
         clearTimeout(timeout);
         console.log("Successfully joined room:", data);
-        router.push(`/room/${roomId}`);
+
+        try {
+          // Push room id to profile
+          const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({ room: roomId })
+          });
+
+          if (!resp.ok) {
+            const errorData = await resp.json();
+            console.error("Error updating profile with room id:", errorData.error);
+            throw new Error(errorData.data || "Failed to update profile with room id");
+          }
+          router.push(`/room/${roomId}`);
+        } catch (err) {
+          console.error("Error updating profile with room id:", err);
+          setFeedback({
+            open: true,
+            title: "Failed to join room",
+            description: "An error occurred while updating your profile. Please try again.",
+            actionLabel: "Close",
+            variant: "error",
+          });
+        }
       });
 
       socket.once("error", (error) => {
