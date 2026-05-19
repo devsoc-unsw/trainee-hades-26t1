@@ -271,8 +271,17 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
       const remaining = Math.max(0, endTime - now);
 
       if (remaining <= 0) {
-        // Timer finished, will be updated via socket
-        handleSkip();
+        // Timer finished - only host can advance
+        if (state.isCurrentUserHost) {
+          const next = getNextPhase(currentPhase);
+          if (next) {
+            const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
+            const socket = getSocket();
+            if (socket.connected) {
+              socket.emit("change-pomo-mode", { roomId, mode: modeMap[next], durations: state.durations });
+            }
+          }
+        }
         return;
       }
 
@@ -282,7 +291,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [state.isRunning, state.serverPomodoroState?.endTime]);
+  }, [state.isRunning, state.serverPomodoroState?.endTime, state.isCurrentUserHost, state.durations, state.isBreak, state.isLongBreak, state.pomoCount, roomId]);
 
   return (
     <div className="w-full bg-(--light-blue) rounded-[30px] border-4 border-(--dark-blue) p-4 sm:p-6 lg:p-8 flex flex-col items-center justify-center gap-4 lg:gap-6">
