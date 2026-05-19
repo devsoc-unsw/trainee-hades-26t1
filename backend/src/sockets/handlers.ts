@@ -27,6 +27,7 @@ interface RoomState {
   pomodoroState: PomodoroState | null;
   todoState: TodoState | null;
   backgroundId: string;
+  customDurations: { pomo: number; short: number; long: number };
 }
 
 const roomStates = new Map<string, RoomState>();
@@ -72,7 +73,7 @@ async function fetchRoomStateFromSupabase(
 }> {
   const client = createSupabaseClient(token);
 
-  const [pomosResult, todosResult, roomResult] = await Promise.all([
+  const [pomosResult, todosResult, roomResult, backgroundResult] = await Promise.all([
     client.from("pomos")
       .select("*")
       .eq("room_id", roomId)
@@ -84,7 +85,7 @@ async function fetchRoomStateFromSupabase(
       .select("*")
       .eq("room_id", roomId)
       .maybeSingle(),
-
+    client.from("rooms").select("created_by").eq("id", roomId).single(),
     client.from("rooms")
       .select("background_id")
       .eq("id", roomId)
@@ -110,8 +111,7 @@ async function fetchRoomStateFromSupabase(
     : null;
 
   const hostId = roomResult.data?.created_by || null;
-
-  const backgroundId = roomResult.data?.background_id ?? "default";
+  const backgroundId = backgroundResult.data?.background_id ?? "default";
 
   return { hostId, pomodoroState, todoState, backgroundId };
 }
@@ -142,7 +142,6 @@ export const roomHandler = (io: Server) => {
       }
 
       socket.join(roomId);
-
       let room = roomStates.get(roomId);
 
       if (!room) {
@@ -154,6 +153,7 @@ export const roomHandler = (io: Server) => {
           hostId, pomodoroState,
           todoState,
           backgroundId,
+          customDurations: { pomo: 25, short: 5, long: 15 },
         };
 
         roomStates.set(roomId, room);
@@ -168,7 +168,7 @@ export const roomHandler = (io: Server) => {
         characterId: "girl1",
       });
 
-      socketUsers.set(socket.id, { userId, roomId, token, token });
+      socketUsers.set(socket.id, { userId, roomId, token });
 
       // Update profile to reflect room membership
       const client = createSupabaseClient(token);
@@ -449,7 +449,7 @@ export const roomHandler = (io: Server) => {
     });
 
     // Change pomo mode handler
-    socket.on("change-pomo-mode", async ({ roomId, mode }) => {
+    socket.on("change-pomo-mode", async ({ roomId, mode, durations }) => {
       const session = socketUsers.get(socket.id);
       if (!session) {
         socket.emit("error", { message: "Session not found" });
@@ -475,25 +475,34 @@ export const roomHandler = (io: Server) => {
         return;
       }
 
+      // Update custom durations if provided
+      if (durations) {
+        room.customDurations = {
+          pomo: durations.pomo || room.customDurations.pomo,
+          short: durations.short || room.customDurations.short,
+          long: durations.long || room.customDurations.long,
+        };
+      }
+
       // Initialize pomodoroState if it doesn't exist
       if (!room.pomodoroState) {
         const client = createSupabaseClient(session.token);
-        const modeSettings = {
-          pomodoro: 25 * 60 * 1000,
-          short_break: 5 * 60 * 1000,
-          long_break: 15 * 60 * 1000,
+        const modeSettingsMinutes = {
+          pomodoro: room.customDurations.pomo,
+          short_break: room.customDurations.short,
+          long_break: room.customDurations.long,
         };
-        const defaultDuration = modeSettings[mode as keyof typeof modeSettings] || 25 * 60 * 1000;
+        const defaultDurationMs = (modeSettingsMinutes[mode as keyof typeof modeSettingsMinutes] || 25) * 60 * 1000;
         
         const { data: newPomo, error: createError } = await client
           .from("pomos")
           .insert([
             {
               room_id: roomId,
-              duration: defaultDuration,
+              duration: defaultDurationMs,
               status: "idle",
               mode,
-              remaining_time: defaultDuration,
+              remaining_time: defaultDurationMs,
               end_time: null,
             },
           ])
@@ -516,13 +525,15 @@ export const roomHandler = (io: Server) => {
         };
       }
 
-      // Calculate duration based on mode
-      const durations: { [key: string]: number } = {
-        pomodoro: 25 * 60 * 1000,
-        short_break: 5 * 60 * 1000,
-        long_break: 15 * 60 * 1000,
+      // Calculate duration based on mode using custom durations
+      const modeToCustomKey: { [key: string]: "pomo" | "short" | "long" } = {
+        pomodoro: "pomo",
+        short_break: "short",
+        long_break: "long",
       };
-      const duration = durations[mode] || 25 * 60 * 1000;
+      const customKey = modeToCustomKey[mode] as "pomo" | "short" | "long";
+      const durationMinutes = room.customDurations[customKey];
+      const duration = durationMinutes * 60 * 1000;
 
       // Update memory
       room.pomodoroState.mode = mode;

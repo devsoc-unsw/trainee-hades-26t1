@@ -6,7 +6,7 @@ import Loading from "@/components/Loading";
 import PomodoroTimer from "@/components/PomodoroTimer";
 import TodoList from "@/components/TodoList";
 import { PencilLine, Check, LogOut } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { type Room } from "@/lib/types";
 import { supabase } from "@/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
@@ -121,7 +121,7 @@ export default function Room() {
       console.error("Update room data error:", error);
       showFeedback("Error", error instanceof Error ? error.message : "An unknown error occurred");
     }
-  }, [roomId]);
+  };
 
   const handleLeaveRoom = async () => {
     try {
@@ -131,7 +131,7 @@ export default function Room() {
       if (!token || !currentUserId) throw new Error("User not authenticated");
 
       const socket = getSocket();
-      socket.emit("leave-room", { roomId, userId: currentUserId });
+      socket.emit("leave-room", { roomId, userId: currentUserId, token });
 
       const clearRoomResp = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`,
@@ -159,13 +159,6 @@ export default function Room() {
     } catch (error) {
       showFeedback("Error", error instanceof Error ? error.message : "Failed to leave room");
     }
-  };
-
-  const handleBgChange = (bg: typeof backgrounds[0]) => {
-    setSelectedBg(bg);
-    setShowPicker(false);
-    const socket = getSocket();
-    socket.emit("update-background", { roomId, backgroundId: bg.id });
   };
 
   const handleBgChange = (bg: typeof backgrounds[0]) => {
@@ -372,8 +365,8 @@ export default function Room() {
                       <div
                         onClick={() => handleCharacterChange(c)}
                         className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 flex-shrink-0 ${selectedCharacter.id === c.id
-                            ? "border-white"
-                            : "border-transparent"
+                          ? "border-white"
+                          : "border-transparent"
                           }`}
                         style={{
                           backgroundImage: `url(${c.src})`,
@@ -400,7 +393,7 @@ export default function Room() {
             </div>
           </div>
         </main>
-
+      )}
       {/* Feedback Modal */}
       <FeedbackModal
         open={feedbackOpen}
@@ -410,7 +403,6 @@ export default function Room() {
         actionLabel={feedbackVariant === "success" ? "Continue" : "Dismiss"}
         variant={feedbackVariant}
       />
-      )}
     </div>
   );
 }
