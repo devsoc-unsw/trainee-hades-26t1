@@ -2,8 +2,10 @@
 import Navbar from "@/components/Navbar";
 import FilterBar from "@/components/FilterBar";
 import RoomCard from "@/components/RoomCard";
+import Loading from "@/components/Loading";
 import { useState } from "react";
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,6 +19,8 @@ import { supabase } from '@/supabaseClient';
 import { pixelify, poppins } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 import { FeedbackModal } from "@/components/FeedbackModal";
+import { getSocket, initSocket } from "@/lib/socket";
+import { Feedback } from "@/lib/types";
 
 
 interface Room {
@@ -36,13 +40,9 @@ export default function Rooms() {
   const [newRoomTitle, setNewRoomTitle] = useState("");
   const [newRoomDescription, setNewRoomDescription] = useState("");
   const [newRoomLocation, setNewRoomLocation] = useState("");
-  const [feedback, setFeedback] = useState<{
-    open: boolean;
-    title: string;
-    description: string;
-    actionLabel: string;
-    variant: "success" | "error";
-  } | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     setFilteredRooms(
@@ -61,6 +61,8 @@ export default function Rooms() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
+
+      console.log(`UserId: ${session?.user.id}`);
 
       if (!token) {
         setFeedback({
@@ -143,6 +145,7 @@ export default function Rooms() {
           actionLabel: "Close",
           variant: "error",
         });
+        setLoading(false);
         return;
       }
 
@@ -165,6 +168,7 @@ export default function Rooms() {
           actionLabel: "Close",
           variant: "error",
         });
+        setLoading(false);
         return;
       }
 
@@ -172,6 +176,7 @@ export default function Rooms() {
       console.log("Rooms fetched successfully:", data);
       setRooms(data);
       setFilteredRooms(data);
+      setLoading(false);
     } catch (error) {
       console.error("Error fetching rooms:", error);
       setFeedback({
@@ -181,8 +186,137 @@ export default function Rooms() {
         actionLabel: "Close",
         variant: "error",
       });
+      setLoading(false);
     }
   }
+
+  const handleJoinRoom = async (roomId: number) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        setFeedback({
+          open: true,
+          title: "Authentication required",
+          description: "You must be logged in to join a room.",
+          actionLabel: "Close",
+          variant: "error",
+        });
+        return;
+      }
+
+      const profileResp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      if (!profileResp.ok) {
+        const errorData = await profileResp.json();
+        setFeedback({
+          open: true,
+          title: "Failed to fetch profile",
+          description: errorData.error || "An unknown error occurred while fetching your profile.",
+          actionLabel: "Close",
+          variant: "error",
+        });
+        return;
+      }
+
+      const profileData = await profileResp.json();
+
+      if (profileData.room === roomId) {
+        router.push(`/room/${roomId}`);
+        return;
+      }
+
+      if (profileData.room) {
+        setFeedback({
+          open: true,
+          title: "Already in a room",
+          description: "You must leave your current room before joining a new one.",
+          actionLabel: "Close",
+          variant: "error",
+        });
+        return;
+      }
+
+      const socket = initSocket(token, String(roomId));
+
+      // Clean up any stale listeners from previous attempts
+      socket.off("room-state");
+      socket.off("error");
+
+      const timeout = setTimeout(() => {
+        socket.off("room-state");
+        socket.off("error");
+        setFeedback({
+          open: true,
+          title: "Request timed out",
+          description: "The server did not respond. Please try again.",
+          actionLabel: "Close",
+          variant: "error",
+        });
+      }, 10000);
+
+      socket.once("room-state", async (data) => {
+        clearTimeout(timeout);
+        console.log("Successfully joined room:", data);
+
+        try {
+          // Push room id to profile
+          const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({ room: roomId })
+          });
+
+          if (!resp.ok) {
+            const errorData = await resp.json();
+            console.error("Error updating profile with room id:", errorData.error);
+            throw new Error(errorData.data || "Failed to update profile with room id");
+          }
+          router.push(`/room/${roomId}`);
+        } catch (err) {
+          console.error("Error updating profile with room id:", err);
+          setFeedback({
+            open: true,
+            title: "Failed to join room",
+            description: "An error occurred while updating your profile. Please try again.",
+            actionLabel: "Close",
+            variant: "error",
+          });
+        }
+      });
+
+      socket.once("error", (error) => {
+        clearTimeout(timeout);
+        console.error("Error joining room:", error);
+        setFeedback({
+          open: true,
+          title: "Failed to join room",
+          description: error.message || "An error occurred while joining the room.",
+          actionLabel: "Close",
+          variant: "error",
+        });
+      });
+
+      socket.emit("join-room", { roomId: String(roomId), token });
+
+    } catch (error) {
+      console.error("Error joining room:", error);
+      setFeedback({
+        open: true,
+        title: "Failed to join room",
+        description: "An unknown error occurred while joining the room.",
+        actionLabel: "Close",
+        variant: "error",
+      });
+    }
+  };
 
   useEffect(() => {
     handleGetRooms();
@@ -192,29 +326,39 @@ export default function Rooms() {
     <div className="pt-18 overflow-x-hidden">
       <Navbar />
       <main className="px-10 py-8">
-        <div className="flex justify-between items-center">
-          <FilterBar value={filter} onChange={setFilter} />
-          <Button
-            variant="outline"
-            className="text-(--dark-blue) hover:text-(--dark-blue) border-(--dark-blue) border-2 cursor-pointer"
-            onClick={() => setIsModalOpen(true)}
-          >
-            + New Room
-          </Button>
-        </div>
+        {loading ? (
+          <div className="flex justify-center items-center min-h-96">
+            <Loading />
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-between items-center">
+              <FilterBar value={filter} onChange={setFilter} />
+              <Button
+                variant="outline"
+                className="text-(--dark-blue) hover:text-(--dark-blue) border-(--dark-blue) border-2 cursor-pointer"
+                onClick={() => setIsModalOpen(true)}
+              >
+                + New Room
+              </Button>
+            </div>
 
-        <div className="grid grid-cols-3 gap-6 mt-8">
-          {filteredRooms.map((room) => (
-            <RoomCard
-              id={room.id}
-              key={room.id}
-              name={room.roomTitle}
-              location={room.location}
-            />
-          ))}
-        </div>
+            <div className="grid grid-cols-3 gap-6 mt-8">
+              {filteredRooms.map((room) => (
+                <RoomCard
+                  id={room.id}
+                  key={room.id}
+                  name={room.roomTitle}
+                  location={room.location}
+                  onClick={() => handleJoinRoom(room.id)}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </main>
 
+      {/* Feedback */}
       <FeedbackModal
         open={feedback?.open ?? false}
         onOpenChange={(open) => {
@@ -228,6 +372,7 @@ export default function Rooms() {
         variant={feedback?.variant ?? "success"}
       />
 
+      {/* Create room modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className={cn(poppins.className, "bg-(--light-blue) border-(--dark-blue)/15 rounded-lg p-6")}>
           <DialogHeader>
