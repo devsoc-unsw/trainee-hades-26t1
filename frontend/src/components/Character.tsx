@@ -5,48 +5,27 @@ interface CharacterProps {
   y: number;
   facingRight: boolean;
   name: string;
+  characterId: string;
 }
 
-export default function Character({ x, y, facingRight, name }: CharacterProps) {
+export default function Character({ x, y, facingRight, name, characterId }: CharacterProps) {
   return (
     <div
-      style={{
-        position: "absolute",
-        left: x,
-        // Anchor to the ground line from the bottom of the div
-        top: y - 150,
-        width: 128,
-        height: 150,
-      }}
+      className="absolute w-[128px] h-[150px]"
+      style={{ left: x, top: y - 150 }}
     >
-      {/* Name tag */}
-      <div
-        style={{
-          position: "absolute",
-          top: -18,
-          left: "50%",
-          transform: "translateX(-50%)",
-          background: "rgba(0,0,0,0.55)",
-          color: "white",
-          fontSize: 10,
-          fontFamily: "monospace",
-          padding: "2px 6px",
-          borderRadius: 4,
-          whiteSpace: "nowrap",
-          pointerEvents: "none",
-        }}
-      >
+      {/* name tag */}
+      <div className="absolute top-[15px] left-1/2 -translate-x-1/2 px-2 py-[2px] text-[10px] font-mono text-black bg-[#fffcd6]/60 rounded whitespace-nowrap pointer-events-none z-10">
         {name}
       </div>
 
-      {/* Sprite */}
+      {/* sprite wrapper */}
       <div
-        className="character"
-        style={{
-          transform: `scale(1.2) ${facingRight ? "scaleX(1)" : "scaleX(-1)"}`,
-          transformOrigin: "bottom left",
-        }}
-      />
+        className="absolute bottom-0 left-0 w-full h-full"
+        style={{ transform: facingRight ? "scaleX(1)" : "scaleX(-1)" }}
+      >
+        <div className={`character-base ${characterId} scale-[1.2] origin-bottom-left`} />
+      </div>
     </div>
   );
 }

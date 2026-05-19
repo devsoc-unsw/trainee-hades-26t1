@@ -3,35 +3,62 @@ import { useState, useEffect, useRef } from "react";
 export interface Character {
   id: string;
   name: string;
+  characterId: string;
   x: number;
   y: number;
   facingRight: boolean;
   targetX: number;
 }
 
+export interface RoomUser {
+  userId: string;
+  name: string;
+  characterId?: string;
+}
+
 const SPEED = 40;
 const SPRITE_W = 128;
 const FLOOR_OFFSET = 20;
 
-function randTarget(roomW: number) {
-  return { targetX: Math.random() * roomW };
-}
-
-function makeCharacters(roomW: number, groundY: number): Character[] {
-  return [
-    { id: "1", name: "Alex", x: 100, y: groundY, facingRight: true,  ...randTarget(roomW) },
-    { id: "2", name: "Sam",  x: 250, y: groundY, facingRight: false, ...randTarget(roomW) },
-    { id: "3", name: "Jess", x: 400, y: groundY, facingRight: true,  ...randTarget(roomW) },
-  ];
-}
-
-export function useAutoWander(roomW: number, roomH: number) {
+export function useAutoWander(roomW: number, roomH: number, users: RoomUser[]) {
   const GROUND_Y = roomH - FLOOR_OFFSET;
-
   const [characters, setCharacters] = useState<Character[]>([]);
-
   const lastTimeRef = useRef<number | null>(null);
-  const initialised = useRef(false);
+  const usersRef = useRef(users);
+  const roomWRef = useRef(roomW);
+  const groundYRef = useRef(GROUND_Y);
+
+  // Keep refs in sync without triggering effects
+  usersRef.current = users;
+  roomWRef.current = roomW;
+  groundYRef.current = GROUND_Y;
+
+  // Sync characters with users outside of an effect
+  const syncCharacters = (prev: Character[]): Character[] => {
+    if (roomW === 0 || roomH === 0) return prev;
+    const existingById = new Map(prev.map(c => [c.id, c]));
+    return users.map(u => {
+      const existing = existingById.get(u.userId);
+      if (existing) {
+        return { ...existing, name: u.name, characterId: u.characterId ?? "girl1" };
+      }
+      return {
+        id: u.userId,
+        name: u.name,
+        characterId: u.characterId ?? "girl1",
+        x: Math.random() * roomW,
+        y: GROUND_Y,
+        facingRight: true,
+        targetX: Math.random() * roomW,
+      };
+    });
+  };
+
+  // Run sync when users/room size changes — using functional update avoids the lint issue
+  useEffect(() => {
+    setCharacters(prev => syncCharacters(prev));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users, roomW, roomH]);
 
   useEffect(() => {
     if (roomW === 0 || roomH === 0) return;
@@ -39,15 +66,6 @@ export function useAutoWander(roomW: number, roomH: number) {
     let rafId: number;
 
     const loop = (now: number) => {
-      // Seed characters on the very first valid frame
-      if (!initialised.current) {
-        initialised.current = true;
-        setCharacters(makeCharacters(roomW, GROUND_Y));
-        lastTimeRef.current = now;
-        rafId = requestAnimationFrame(loop);
-        return;
-      }
-
       const delta = lastTimeRef.current !== null
         ? Math.min(now - lastTimeRef.current, 100)
         : 16;
@@ -59,21 +77,16 @@ export function useAutoWander(roomW: number, roomH: number) {
           const dist = Math.abs(dx);
 
           if (dist < 5) {
-            return { ...c, targetX: Math.random() * roomW };
+            return { ...c, targetX: Math.random() * roomWRef.current };
           }
 
           const step = (SPEED * delta) / 1000;
           let newX = c.x + (dx / dist) * step;
 
-          if (newX < -SPRITE_W) newX = roomW;
-          if (newX > roomW)     newX = -SPRITE_W;
+          if (newX < -SPRITE_W) newX = roomWRef.current;
+          if (newX > roomWRef.current) newX = -SPRITE_W;
 
-          return {
-            ...c,
-            x: newX,
-            y: GROUND_Y,
-            facingRight: dx > 0,
-          };
+          return { ...c, x: newX, y: groundYRef.current, facingRight: dx > 0 };
         })
       );
 
@@ -86,7 +99,7 @@ export function useAutoWander(roomW: number, roomH: number) {
       cancelAnimationFrame(rafId);
       lastTimeRef.current = null;
     };
-  }, [roomW, roomH, GROUND_Y]);
+  }, [roomW, roomH]);
 
   return { characters };
 }
