@@ -6,13 +6,13 @@ import Loading from "@/components/Loading";
 import PomodoroTimer from "@/components/PomodoroTimer";
 import TodoList from "@/components/TodoList";
 import { PencilLine, Check, LogOut } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { type Room } from "@/lib/types";
 import { supabase } from "@/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { getSocket, initSocket } from "@/lib/socket";
 import { Button } from "@/components/ui/button";
+import { FeedbackModal } from "@/components/FeedbackModal";
 import CharacterAnimation from "@/components/CharacterAnimation";
 import { backgrounds } from "@/lib/backgrounds";
 import type { RoomUser } from "@/lib/types";
@@ -28,6 +28,13 @@ export default function Room() {
   const [showCharacterPicker, setShowCharacterPicker] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState(characters[0]);
   const [loading, setLoading] = useState(true);
+  const isInitialLoadRef = useRef(true);
+
+  // Feedback modal state
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackTitle, setFeedbackTitle] = useState("");
+  const [feedbackDescription, setFeedbackDescription] = useState("");
+  const [feedbackVariant, setFeedbackVariant] = useState<"success" | "error">("error");
 
   const roomId = String(useParams().id);
   const router = useRouter();
@@ -41,6 +48,18 @@ export default function Room() {
       roomId,
       characterId: c.id,
     });
+  };
+
+  // Helper function to show feedback modal
+  const showFeedback = (
+    title: string,
+    description: string,
+    variant: "success" | "error" = "error"
+  ) => {
+    setFeedbackTitle(title);
+    setFeedbackDescription(description);
+    setFeedbackVariant(variant);
+    setFeedbackOpen(true);
   };
 
   const getRoomData = async (roomId: string) => {
@@ -58,7 +77,7 @@ export default function Room() {
       const roomData = await resp.json();
       setData(roomData);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unknown error");
+      showFeedback("Error", error instanceof Error ? error.message : "An unknown error occurred");
     } finally {
       setLoading(false);
     }
@@ -78,40 +97,32 @@ export default function Room() {
 
       return await resp.json();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unknown error");
+      showFeedback("Error", error instanceof Error ? error.message : "An unknown error occurred");
       return null;
     }
   };
 
-  const updateRoomData = useCallback(async (updatedData: Room) => {
+  const updateRoomData = (updatedData: Room) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error("User not authenticated");
+      const socket = getSocket();
 
-      const resp = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(updatedData),
-        }
-      );
-
-      if (!resp.ok) {
-        const errorResp = await resp.json();
-        throw new Error(errorResp.error || "Failed to update room data");
+      if (!socket.connected) {
+        showFeedback("Error", "Socket not connected. Please refresh the page.");
+        return;
       }
 
-      const updatedRoom = await resp.json();
-      setData(updatedRoom);
+      // Emit update-room event with only the fields to update
+      socket.emit("update-room", {
+        roomId,
+        roomTitle: updatedData.roomTitle,
+        description: updatedData.description,
+        location: updatedData.location,
+      });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unknown error");
+      console.error("Update room data error:", error);
+      showFeedback("Error", error instanceof Error ? error.message : "An unknown error occurred");
     }
-  }, [roomId]);
+  };
 
   const handleLeaveRoom = async () => {
     try {
@@ -121,7 +132,7 @@ export default function Room() {
       if (!token || !currentUserId) throw new Error("User not authenticated");
 
       const socket = getSocket();
-      socket.emit("leave-room", { roomId, userId: currentUserId });
+      socket.emit("leave-room", { roomId, userId: currentUserId, token });
 
       const clearRoomResp = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`,
@@ -137,13 +148,17 @@ export default function Room() {
 
       if (!clearRoomResp.ok) {
         const errorResp = await clearRoomResp.json();
-        throw new Error(errorResp.error || "Failed to leave room");
+        showFeedback("Failed to Leave Room", errorResp.error || "Could not leave the room.");
+        return;
       }
 
-      toast.success("Left room successfully");
-      router.push("/rooms");
+      showFeedback("Room Left", "You have successfully left the room.", "success");
+      // Navigate after a brief delay to let user see the success message
+      setTimeout(() => {
+        router.push("/rooms");
+      }, 1500);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to leave room");
+      showFeedback("Error", error instanceof Error ? error.message : "Failed to leave room");
     }
   };
 
@@ -168,10 +183,9 @@ export default function Room() {
 
   useEffect(() => {
     if (!isEditing && data) {
-      updateRoomData({ ...data });
+      isInitialLoadRef.current = false;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditing, updateRoomData]);
+  }, [isEditing, data]);
 
   useEffect(() => {
     const reconnect = async () => {
@@ -180,6 +194,11 @@ export default function Room() {
       if (!token) return;
 
       const socket = initSocket(token, roomId);
+
+      // Listen for room updates from other users or this user
+      socket.on("room-updated", (updatedRoom) => {
+        setData(updatedRoom);
+      });
 
       if (socket.connected) {
         socket.emit("join-room", { roomId, token });
@@ -221,6 +240,7 @@ export default function Room() {
       socket.off("user-joined");
       socket.off("user-left");
       socket.off("background-updated");
+      socket.off("room-updated");
       socket.off("error");
     };
   }, [roomId]);
@@ -238,7 +258,7 @@ export default function Room() {
           <div className="w-full xl:w-2/3 flex flex-col items-start p-4 sm:p-6 xl:p-8 gap-3 sm:gap-4">
 
             {/* Title Row */}
-            <div className="w-full flex items-center gap-2">
+            <div className="w-full flex items-center gap-2 h-12 sm:h-16">
               <div className="w-full bg-(--dark-blue) text-white font-mono text-base sm:text-xl xl:text-2xl tracking-widest px-4 sm:px-6 xl:px-8 py-3 sm:py-4 xl:py-5 rounded-xl flex items-center justify-between">
                 {isEditing ? (
                   <input
@@ -259,7 +279,13 @@ export default function Room() {
                   <Check
                     size={20}
                     className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete flex-shrink-0"
-                    onClick={() => setIsEditing(false)}
+                    onClick={() => {
+                      setIsEditing(false);
+                      // Update room data when user finishes editing
+                      if (data) {
+                        updateRoomData(data);
+                      }
+                    }}
                   />
                 ) : (
                   <PencilLine
@@ -319,9 +345,8 @@ export default function Room() {
                           width={80}
                           height={56}
                           onClick={() => handleBgChange(b)}
-                          className={`w-16 sm:w-20 h-12 sm:h-14 object-cover rounded-xl cursor-pointer border-2 ${
-                            selectedBg.id === b.id ? "border-white" : "border-transparent hover:border-white/50"
-                          }`}
+                          className={`w-16 sm:w-20 h-12 sm:h-14 object-cover rounded-xl cursor-pointer border-2 ${selectedBg.id === b.id ? "border-white" : "border-transparent hover:border-white/50"
+                            }`}
                         />
                         <span className="text-white font-mono text-xs">{b.label}</span>
                       </div>
@@ -344,11 +369,10 @@ export default function Room() {
                     <div key={c.id} className="flex flex-col items-center gap-1">
                       <div
                         onClick={() => handleCharacterChange(c)}
-                        className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 flex-shrink-0 ${
-                          selectedCharacter.id === c.id
-                            ? "border-white"
-                            : "border-transparent"
-                        }`}
+                        className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 flex-shrink-0 ${selectedCharacter.id === c.id
+                          ? "border-white"
+                          : "border-transparent"
+                          }`}
                         style={{
                           backgroundImage: `url(${c.src})`,
                           backgroundRepeat: "no-repeat",
@@ -367,7 +391,7 @@ export default function Room() {
 
           {/* Productivity Tools */}
           <div className="w-full xl:w-1/3 flex flex-col gap-6 xl:gap-8 p-4 sm:p-6 xl:p-8">
-            <PomodoroTimer />
+            <PomodoroTimer roomId={roomId} />
             <TodoList />
             <div className="flex-1 bg-(--light-blue) border-4 border-(--dark-blue) text-(--dark-blue) rounded-[30px] p-6">
               Welcome to your Study Nook!
@@ -375,6 +399,15 @@ export default function Room() {
           </div>
         </main>
       )}
+      {/* Feedback Modal */}
+      <FeedbackModal
+        open={feedbackOpen}
+        onOpenChange={setFeedbackOpen}
+        title={feedbackTitle}
+        description={feedbackDescription}
+        actionLabel={feedbackVariant === "success" ? "Continue" : "Dismiss"}
+        variant={feedbackVariant}
+      />
     </div>
   );
 }
