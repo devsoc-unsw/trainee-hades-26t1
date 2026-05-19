@@ -35,16 +35,16 @@ export default function Navbar() {
   // obtain the last
   useEffect(() => {
     const fetchLastRoom = async () => {
-      const { data: { user }} = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
         return
       }
 
-      const { data } = await supabase.from("rooms").select("id").eq("created_by", user.id).order("created_at", { ascending: false }).limit(1).single()
+      const { data } = await supabase.from("profiles").select("room").eq("id", user.id).single()
 
       if (data) {
-        setLastRoomId(data.id)
+        setLastRoomId(data.room)
       }
     }
 
@@ -66,7 +66,7 @@ export default function Navbar() {
             <Link
               key={label}
               href={href}
-              
+
               className={`${linkStyles} ${isActive(href) ? activeStyles : inactiveStyles}`}
             >
               {label}
@@ -75,12 +75,12 @@ export default function Navbar() {
 
           {/* sign out button */}
           <button
-          onClick={async () => {
-            await supabase.auth.signOut();
-            
-            router.push("/")
-          }}
-          className={`${linkStyles} ${inactiveStyles} cursor-pointer`}>
+            onClick={async () => {
+              await supabase.auth.signOut();
+
+              router.push("/")
+            }}
+            className={`${linkStyles} ${inactiveStyles} cursor-pointer`}>
             Sign Out
           </button>
         </div>
@@ -106,9 +106,8 @@ export default function Navbar() {
 
       {/* Mobile dropdown menu */}
       <div
-        className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
-          menuOpen ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
-        }`}
+        className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${menuOpen ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+          }`}
       >
         <div className="flex flex-col px-6 py-6 gap-2 border-(--dark-blue)">
           {links.map(({ href, label }) => (
@@ -116,7 +115,7 @@ export default function Navbar() {
               key={label}
               href={href}
               onClick={() => {
-                
+
                 setMenuOpen(false);
               }}
               className={`${linkStyles} ${isActive(href) ? activeStyles : inactiveStyles}`}
