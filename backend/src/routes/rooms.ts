@@ -203,4 +203,36 @@ router.put("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
   }
 });
 
+router.get("/:roomId/users", supabaseAuth, async (req: Request, res: Response) => {
+  try {
+    const { roomId } = req.params;
+    const supabaseClient = req.supabaseClient;
+
+    if (!supabaseClient) {
+      return res.status(500).json({ error: "Supabase client not initialized" });
+    }
+
+    const { data, error } = await supabaseClient
+      .from("profiles")
+      .select("id, name")
+      .eq("room", roomId);
+
+    if (error) {
+      console.error("Supabase error:", error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    // Map to RoomUser type
+    const users = data.map((u: any) => ({
+      userId: u.id,
+      name: u.name
+    }));
+
+    res.json(users);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;

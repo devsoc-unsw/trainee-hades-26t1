@@ -4,13 +4,12 @@ let socket: Socket | null = null;
 
 export const getSocket = (token?: string): Socket => {
   if (!socket) {
-    const socketUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+    const socketUrl =
+      process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+
     socket = io(socketUrl, {
       auth: { token },
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
     });
   }
   return socket;
@@ -19,7 +18,6 @@ export const getSocket = (token?: string): Socket => {
 export const initSocket = (token: string, roomId: string): Socket => {
   const s = getSocket(token);
 
-  // Re-join room on every (re)connect
   s.on("connect", () => {
     s.emit("join-room", { roomId, token });
   });
@@ -32,8 +30,4 @@ export const disconnectSocket = (): void => {
     socket.disconnect();
     socket = null;
   }
-};
-
-export const isSocketConnected = (): boolean => {
-  return socket ? socket.connected : false;
 };
