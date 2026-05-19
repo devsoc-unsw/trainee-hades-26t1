@@ -15,22 +15,31 @@ interface TodoState {
   items: unknown;
 }
 
+interface RoomUser {
+  userId: string;
+  name: string;
+  characterId?: string; // ✅ NEW
+}
+
 interface RoomState {
-  users: Set<string>;
+  users: Map<string, RoomUser>;
   pomodoroState: PomodoroState | null;
   todoState: TodoState | null;
+  backgroundId: string;
 }
 
 const roomStates = new Map<string, RoomState>();
-const socketUsers = new Map<string, { userId: string; roomId: string }>();
+const socketUsers = new Map<
+  string,
+  { userId: string; roomId: string; token: string }
+>();
+
+// ---------------- AUTH HELPERS ----------------
 
 async function getUserFromToken(token: string): Promise<string | null> {
   try {
     const client = createSupabaseClient(token);
-    const {
-      data: { user },
-      error,
-    } = await client.auth.getUser();
+    const { data: { user }, error } = await client.auth.getUser();
     if (error || !user) return null;
     return user.id;
   } catch {
@@ -38,24 +47,51 @@ async function getUserFromToken(token: string): Promise<string | null> {
   }
 }
 
+async function getUserProfile(userId: string, token: string): Promise<{ name: string }> {
+  try {
+    const client = createSupabaseClient(token);
+    const { data, error } = await client
+      .from("profiles")
+      .select("name")
+      .eq("id", userId)
+      .single();
+
+    if (error || !data) return { name: "Unknown" };
+    return { name: data.name };
+  } catch {
+    return { name: "Unknown" };
+  }
+}
+
+// ---------------- ROOM LOAD ----------------
+
 async function fetchRoomStateFromSupabase(
   roomId: string,
   token: string,
 ): Promise<{
   pomodoroState: PomodoroState | null;
   todoState: TodoState | null;
+  backgroundId: string;
 }> {
   const client = createSupabaseClient(token);
 
-  const [pomosResult, todosResult] = await Promise.all([
-    client
-      .from("pomos")
+  const [pomosResult, todosResult, roomResult] = await Promise.all([
+    client.from("pomos")
       .select("*")
       .eq("room_id", roomId)
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle(), // returns null if no rows (single() errors)
-    client.from("todos").select("*").eq("room_id", roomId).maybeSingle(),
+      .maybeSingle(),
+
+    client.from("todos")
+      .select("*")
+      .eq("room_id", roomId)
+      .maybeSingle(),
+
+    client.from("rooms")
+      .select("background_id")
+      .eq("id", roomId)
+      .maybeSingle(),
   ]);
 
   const pomodoroState = pomosResult.data
@@ -70,101 +106,162 @@ async function fetchRoomStateFromSupabase(
     : null;
 
   const todoState = todosResult.data
-    ? { id: todosResult.data.id, items: todosResult.data.items }
+    ? {
+        id: todosResult.data.id,
+        items: todosResult.data.items,
+      }
     : null;
 
-  return { pomodoroState, todoState };
+  const backgroundId = roomResult.data?.background_id ?? "default";
+
+  return { pomodoroState, todoState, backgroundId };
 }
+
+// ---------------- BACKGROUND SAVE ----------------
+
+async function saveBackgroundToSupabase(
+  roomId: string,
+  backgroundId: string,
+  token: string,
+) {
+  const client = createSupabaseClient(token);
+  await client.from("rooms").update({ background_id: backgroundId }).eq("id", roomId);
+}
+
+// ---------------- SOCKET HANDLER ----------------
 
 export const roomHandler = (io: Server) => {
   io.on("connection", (socket: Socket) => {
     console.log(`User connected: ${socket.id}`);
 
-    // Join room handler with authentication
+    // ---------------- JOIN ROOM ----------------
     socket.on("join-room", async ({ roomId, token }) => {
       const userId = await getUserFromToken(token);
-
       if (!userId) {
         socket.emit("error", { message: "Unauthorized" });
-        return; // prevent unauthenticated users coming in
+        return;
       }
 
       socket.join(roomId);
 
-      // First user: Fetch from Supabase, else use memory.
       let room = roomStates.get(roomId);
+
       if (!room) {
-        const { pomodoroState, todoState } = await fetchRoomStateFromSupabase(
-          roomId,
-          token,
-        );
-        room = { users: new Set(), pomodoroState, todoState };
+        const { pomodoroState, todoState, backgroundId } =
+          await fetchRoomStateFromSupabase(roomId, token);
+
+        room = {
+          users: new Map(),
+          pomodoroState,
+          todoState,
+          backgroundId,
+        };
+
         roomStates.set(roomId, room);
       }
 
-      room.users.add(userId);
-      socketUsers.set(socket.id, { userId, roomId });
+      const { name } = await getUserProfile(userId, token);
 
-      socket.emit("room-state", {
-        users: Array.from(room.users),
-        pomodoroState: room.pomodoroState,
-        todoState: room.todoState,
+      // ✅ default character assigned here
+      room.users.set(userId, {
+        userId,
+        name,
+        characterId: "girl1",
       });
 
-      socket.to(roomId).emit("user-joined", { userId });
+      socketUsers.set(socket.id, { userId, roomId, token });
 
-      console.log(`Authenticated user ${userId} joined room ${roomId}`);
+      socket.emit("room-state", {
+        users: Array.from(room.users.values()),
+        pomodoroState: room.pomodoroState,
+        todoState: room.todoState,
+        backgroundId: room.backgroundId,
+      });
+
+      socket.to(roomId).emit("user-joined", {
+        userId,
+        name,
+        characterId: "girl1",
+      });
+
+      console.log(`User ${userId} (${name}) joined room ${roomId}`);
     });
 
-    // Leave room handler
+    // ---------------- BACKGROUND ----------------
+    socket.on("update-background", async ({ roomId, backgroundId }) => {
+      const session = socketUsers.get(socket.id);
+      if (!session) return;
+
+      const room = roomStates.get(roomId);
+      if (room) room.backgroundId = backgroundId;
+
+      await saveBackgroundToSupabase(roomId, backgroundId, session.token);
+
+      io.to(roomId).emit("background-updated", { backgroundId });
+    });
+
+    // ---------------- CHARACTER UPDATE (NEW) ----------------
     socket.on(
-      "leave-room",
-      ({ roomId, userId }: { roomId: string; userId: string }) => {
-        socketUsers.delete(socket.id);
-        socket.leave(roomId);
+      "update-character",
+      ({ roomId, characterId }: { roomId: string; characterId: string }) => {
+        const session = socketUsers.get(socket.id);
+        if (!session) return;
 
         const room = roomStates.get(roomId);
-        if (room) {
-          room.users.delete(userId);
+        if (!room) return;
 
-          if (room.users.size === 0) {
-            roomStates.delete(roomId);
-            console.log(`Room ${roomId} is empty, cleaned up`);
-          } else {
-            socket.to(roomId).emit("user-left", { userId });
-          }
-        }
-      },
+        const user = room.users.get(session.userId);
+        if (!user) return;
+
+        user.characterId = characterId;
+
+        io.to(roomId).emit("room-state", {
+          users: Array.from(room.users.values()),
+          pomodoroState: room.pomodoroState,
+          todoState: room.todoState,
+          backgroundId: room.backgroundId,
+        });
+      }
     );
 
-    // Send message handler
-    socket.on(
-      "send-message",
-      ({
-        roomId,
+    // ---------------- LEAVE ROOM ----------------
+    socket.on("leave-room", ({ roomId, userId }) => {
+      socketUsers.delete(socket.id);
+      socket.leave(roomId);
+
+      const room = roomStates.get(roomId);
+
+      if (room) {
+        room.users.delete(userId);
+
+        if (room.users.size === 0) {
+          roomStates.delete(roomId);
+        } else {
+          socket.to(roomId).emit("user-left", { userId });
+        }
+      }
+    });
+
+    // ---------------- CHAT ----------------
+    socket.on("send-message", ({ roomId, userId, message }) => {
+      io.to(roomId).emit("new-message", {
         userId,
         message,
-      }: {
-        roomId: string;
-        userId: string;
-        message: string;
-      }) => {
-        io.to(roomId).emit("new-message", {
-          userId,
-          message,
-          timestamp: new Date().toISOString(),
-        });
-      },
-    );
+        timestamp: new Date().toISOString(),
+      });
+    });
 
-    // Disconnect handler
+    // ---------------- DISCONNECT ----------------
     socket.on("disconnect", () => {
       const session = socketUsers.get(socket.id);
+
       if (session) {
         const { userId, roomId } = session;
+
         socketUsers.delete(socket.id);
 
         const room = roomStates.get(roomId);
+
         if (room) {
           room.users.delete(userId);
 
@@ -175,18 +272,10 @@ export const roomHandler = (io: Server) => {
           }
         }
       }
+
       console.log(`User disconnected: ${socket.id}`);
     });
-
-    // Message handler example
-    // socket.on("message", (data) => {
-    //   console.log(`Message from ${socket.id}:`, data);
-    //   io.emit("message", { id: socket.id, ...data });
-    // });
   });
 };
 
-export const todoHandler = (io: Server) => {
-  // todo-related events
-};
-
+export const todoHandler = (io: Server) => {};
