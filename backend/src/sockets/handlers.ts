@@ -619,11 +619,6 @@ export const roomHandler = (io: Server) => {
         return;
       }
 
-      if (session.userId !== room.hostId) {
-        socket.emit("error", { message: "Only host can control timer" });
-        return;
-      }
-
       // Initialize pomodoroState if missing by fetching the trigger-created row
       if (!room.pomodoroState) {
         const client = createSupabaseClient(session.token);
@@ -689,11 +684,6 @@ export const roomHandler = (io: Server) => {
       const room = roomStates.get(roomId);
       if (!room) {
         socket.emit("error", { message: "Room not found" });
-        return;
-      }
-
-      if (session.userId !== room.hostId) {
-        socket.emit("error", { message: "Only host can control timer" });
         return;
       }
 
@@ -766,11 +756,6 @@ export const roomHandler = (io: Server) => {
       const room = roomStates.get(roomId);
       if (!room) {
         socket.emit("error", { message: "Room not found" });
-        return;
-      }
-
-      if (session.userId !== room.hostId) {
-        socket.emit("error", { message: "Only host can control timer" });
         return;
       }
 
@@ -916,7 +901,7 @@ export const roomHandler = (io: Server) => {
       },
     );
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async() => {
       const session = socketUsers.get(socket.id);
       if (session) {
         const { userId, roomId } = session;
@@ -930,6 +915,14 @@ export const roomHandler = (io: Server) => {
             socket.to(roomId).emit("user-left", { userId });
           }
         }
+
+        // Clear room from database
+        const client = createSupabaseClient(session.token);
+        await client
+          .from("profiles")
+          .update({ room: null })
+          .eq("id", session.userId);
+        console.log(`User ${userId} disconnected and left room ${roomId}`);
       }
       console.log(`User disconnected: ${socket.id}`);
     });

@@ -48,6 +48,7 @@ type TimerAction =
   | { type: "SET_TIMER"; payload: { minutes: number; seconds: number } }
   | { type: "SET_PHASE"; payload: { isBreak: boolean; isLongBreak: boolean } }
   | { type: "SET_RUNNING"; payload: boolean }
+  | { type: "SET_DURATIONS"; payload: { pomo: number; short: number; long: number } }
   | { type: "INCREMENT_POMO_COUNT" }
   | { type: "TOGGLE_SETTINGS" }
   | { type: "UPDATE_DRAFT"; payload: Partial<{ pomo: number; short: number; long: number }> }
@@ -83,6 +84,8 @@ function timerReducer(state: TimerState, action: TimerAction): TimerState {
       return { ...state, isBreak: action.payload.isBreak, isLongBreak: action.payload.isLongBreak };
     case "SET_RUNNING":
       return { ...state, isRunning: action.payload };
+    case "SET_DURATIONS":
+      return { ...state, durations: action.payload, draft: action.payload };
     case "INCREMENT_POMO_COUNT":
       return { ...state, pomoCount: state.pomoCount + 1 };
     case "TOGGLE_SETTINGS":
@@ -119,9 +122,18 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
   useEffect(() => {
     const socket = getSocket();
 
-    const handleRoomState = (data: { hostId: string; pomodoroState: ServerPomodoroState | null }) => {
-      console.log("Received room-state:", data);
+    const handleRoomState = (data: {
+      hostId: string;
+      pomodoroState: ServerPomodoroState | null;
+      customDurations?: { pomo: number; short: number; long: number }; // Add this
+    }) => {
       dispatch({ type: "SET_HOST_ID", payload: data.hostId });
+
+      // Sync the host's custom durations to the guest
+      if (data.customDurations) {
+        dispatch({ type: "SET_DURATIONS", payload: data.customDurations });
+      }
+
       if (data.pomodoroState) {
         dispatch({ type: "SET_SERVER_STATE", payload: data.pomodoroState });
         syncLocalStateFromServer(data.pomodoroState, dispatch);
@@ -164,23 +176,25 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
   }, [state.hostId]);
 
   const syncLocalStateFromServer = (serverState: ServerPomodoroState, dispatcher: typeof dispatch) => {
-    // Determine phase
     const phase = serverState.mode === "pomodoro" ? "pomo" : serverState.mode === "short_break" ? "short" : "long";
     dispatcher({ type: "SET_PHASE", payload: { isBreak: phase === "short", isLongBreak: phase === "long" } });
-
-    // Set running status
     dispatcher({ type: "SET_RUNNING", payload: serverState.status === "running" });
 
-    // Calculate and set time display
+    if (serverState.duration) {
+      const durationInMins = Math.round(serverState.duration / (60 * 1000));
+      dispatcher({
+        type: "UPDATE_DRAFT",
+        payload: { [phase]: durationInMins }
+      });
+    }
+
     if (serverState.status === "running" && serverState.endTime) {
-      // Timer is running, use endTime to calculate remaining
       const now = Date.now();
       const remaining = Math.max(0, serverState.endTime - now);
       const mins = Math.floor(remaining / (60 * 1000));
       const secs = Math.floor((remaining % (60 * 1000)) / 1000);
       dispatcher({ type: "SET_TIMER", payload: { minutes: mins, seconds: secs } });
     } else {
-      // Timer is paused or idle
       const timeMs = serverState.remainingTime || serverState.duration || 25 * 60 * 1000;
       const mins = Math.floor(timeMs / (60 * 1000));
       const secs = Math.floor((timeMs % (60 * 1000)) / 1000);
@@ -218,20 +232,20 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
   };
 
   const handleSkip = () => {
-    // Only host can skip/advance timer
-    if (!state.isCurrentUserHost) return;
+    const newCount = currentPhase === "pomo" ? state.pomoCount + 1 : state.pomoCount;
 
-    const next = getNextPhase(currentPhase);
-    if (!next) return;
+    if (currentPhase === "pomo") dispatch({ type: "INCREMENT_POMO_COUNT" });
+
+    let next: Phase = "pomo";
+    if (currentPhase === "pomo") {
+      next = newCount % 4 === 0 ? "long" : "short";
+    }
 
     const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
     const socket = getSocket();
-    if (!socket.connected) {
-      console.error("Socket not connected");
-      return;
+    if (socket.connected) {
+      socket.emit("change-pomo-mode", { roomId, mode: modeMap[next], durations: state.durations });
     }
-    console.log("Emitting change-pomo-mode for roomId:", roomId, "mode:", modeMap[next]);
-    socket.emit("change-pomo-mode", { roomId, mode: modeMap[next], durations: state.durations });
   };
 
   const handleChangeMode = (phase: Phase) => {
@@ -247,14 +261,9 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
 
   const handleSaveSettings = () => {
     dispatch({ type: "SAVE_SETTINGS" });
-    // Calculate new duration for current mode
-    const currentModeName = currentPhase === "pomo" ? "pomo" : currentPhase === "short" ? "short" : "long";
-
     const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
     const socket = getSocket();
     socket.emit("change-pomo-mode", { roomId, mode: modeMap[currentPhase], durations: state.draft });
-
-    dispatch({ type: "SET_TIMER", payload: { minutes: state.draft[currentModeName], seconds: 0 } });
   };
 
   const handleOpenSettings = () => {
@@ -273,15 +282,22 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
       const remaining = Math.max(0, endTime - now);
 
       if (remaining <= 0) {
+        clearInterval(interval);
+
         // Timer finished - only host can advance
         if (state.isCurrentUserHost) {
-          const next = getNextPhase(currentPhase);
-          if (next) {
-            const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
-            const socket = getSocket();
-            if (socket.connected) {
-              socket.emit("change-pomo-mode", { roomId, mode: modeMap[next], durations: state.durations });
-            }
+          const newCount = currentPhase === "pomo" ? state.pomoCount + 1 : state.pomoCount;
+          if (currentPhase === "pomo") dispatch({ type: "INCREMENT_POMO_COUNT" });
+
+          let next: Phase = "pomo";
+          if (currentPhase === "pomo") {
+            next = newCount % 4 === 0 ? "long" : "short";
+          }
+
+          const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
+          const socket = getSocket();
+          if (socket.connected) {
+            socket.emit("change-pomo-mode", { roomId, mode: modeMap[next], durations: state.durations });
           }
         }
         return;
@@ -293,7 +309,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [state.isRunning, state.serverPomodoroState?.endTime, state.isCurrentUserHost, state.durations, state.isBreak, state.isLongBreak, state.pomoCount, roomId]);
+  }, [state.isRunning, state.serverPomodoroState?.endTime, state.isCurrentUserHost, state.durations, currentPhase, state.pomoCount, roomId]);
 
   return (
     <div
@@ -356,7 +372,6 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
                       );
                       dispatch({ type: "UPDATE_DRAFT", payload: { [phase]: val } });
                     }}
-                    disabled={!state.isCurrentUserHost}
                     className="w-16 text-center font-mono text-(--dark-blue) bg-white/75 border-2 border-(--dark-blue) rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
@@ -365,14 +380,12 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
               <div className="flex items-center gap-4 mt-1">
                 <button
                   onClick={() => dispatch({ type: "RESET_SETTINGS" })}
-                  disabled={!state.isCurrentUserHost}
                   className="text-sm rounded-lg shrink-0 px-4 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-white/75 cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Reset
                 </button>
                 <button
                   onClick={handleSaveSettings}
-                  disabled={!state.isCurrentUserHost}
                   className="text-sm rounded-lg flex-1 px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-(--pastel-yellow) cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="flex items-center justify-center gap-2">
@@ -388,7 +401,6 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
               <div className="flex w-full gap-2 text-white">
                 <button
                   onClick={() => handleChangeMode("pomo")}
-                  disabled={!state.isCurrentUserHost}
                   className={`cursor-pointer flex-1 px-1 py-1 text-white transition hover:bg-(--dark-blue) disabled:opacity-50 disabled:cursor-not-allowed ${!state.isBreak && !state.isLongBreak
                     ? "rounded-sm bg-(--dark-blue)"
                     : "rounded-sm bg-(--dark-blue)/50"
@@ -398,7 +410,6 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
                 </button>
                 <button
                   onClick={() => handleChangeMode("short")}
-                  disabled={!state.isCurrentUserHost}
                   className={`cursor-pointer flex-1 px-1 py-1 transition hover:bg-(--dark-blue) disabled:opacity-50 disabled:cursor-not-allowed ${state.isBreak
                     ? "rounded-sm bg-(--dark-blue)"
                     : "rounded-sm bg-(--dark-blue)/50"
@@ -408,7 +419,6 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
                 </button>
                 <button
                   onClick={() => handleChangeMode("long")}
-                  disabled={!state.isCurrentUserHost}
                   className={`cursor-pointer flex-1 px-1 py-1 transition hover:bg-(--dark-blue) disabled:opacity-50 disabled:cursor-not-allowed ${state.isLongBreak
                     ? "rounded-sm bg-(--dark-blue)"
                     : "rounded-sm bg-(--dark-blue)/50"
@@ -428,7 +438,6 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
               <div className="flex justify-between w-full text-white">
                 <button
                   onClick={handleOpenSettings}
-                  disabled={!state.isCurrentUserHost}
                   className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <Settings size={24} />
@@ -436,7 +445,6 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
 
                 <button
                   onClick={state.isRunning ? handlePauseTimer : handleStartTimer}
-                  disabled={!state.isCurrentUserHost}
                   className={`w-35 rounded-[20px] px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-(--pastel-yellow) cursor-pointer transition-all duration-75 disabled:opacity-50 disabled:cursor-not-allowed ${state.isRunning
                     ? "shadow-none translate-y-1"
                     : "shadow-[0_4px_0_0_var(--dark-blue)]"
@@ -448,7 +456,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
                 {getNextPhase(currentPhase) !== null ? (
                   <button
                     onClick={handleSkip}
-                    disabled={!state.isRunning || !state.isCurrentUserHost}
+                    disabled={!state.isRunning}
                     className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     <SkipForward size={24} fill="var(--dark-blue)" />
