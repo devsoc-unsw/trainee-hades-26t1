@@ -308,19 +308,43 @@ export const roomHandler = (io: Server) => {
 
     socket.on(
       "update-character",
-      ({ roomId, characterId }: { roomId: string; characterId: string }) => {
+      async ({ roomId, characterId }: { roomId: string; characterId: string }) => {
         const session = socketUsers.get(socket.id);
-        if (!session) return;
+        if (!session) {
+          socket.emit("error", { message: "Session not found" });
+          return;
+        }
 
         const room = roomStates.get(roomId);
-        if (!room) return;
+        if (!room) {
+          socket.emit("error", { message: "Room not found" });
+          return;
+        }
 
         const user = room.users.get(session.userId);
         if (!user) return;
 
         user.characterId = characterId;
 
-        io.to(roomId).emit("character-updated", { userId: session.userId, characterId });
+        io.to(roomId).emit("character-updated", { 
+          userId: session.userId, 
+          characterId 
+        });
+
+        try {
+          const client = createSupabaseClient(session.token);
+          const { error } = await client
+            .from("profiles")
+            .update({ character_id: characterId })
+            .eq("id", session.userId);
+
+          if (error) {
+            console.error(`Failed to save character for user ${session.userId}:`, error.message);
+            socket.emit("error", { message: "Failed to save character to database" });
+          }
+        } catch (err) {
+          console.error("update-character DB exception:", err);
+        }
       },
     );
 

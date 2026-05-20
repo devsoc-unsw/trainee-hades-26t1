@@ -43,33 +43,15 @@ export default function Room() {
   const roomId = String(useParams().id);
   const router = useRouter();
 
-  const handleCharacterChange = async (c: Character) => {
+  const handleCharacterChange = (c: Character) => {
     setSelectedCharacter(c);
     setShowCharacterPicker(false);
 
     const socket = getSocket();
-    socket.emit("update-character", { roomId, characterId: c.id });
-
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) return;
-
-      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ character_id: c.id }),
-      });
-    } catch {
-      setFeedbackDescription("Failed to save character. Please try again.");
-      setFeedbackVariant("error");
-      setFeedbackTitle("Error");
-      setFeedbackOpen(true);
+    if (socket.connected) {
+      socket.emit("update-character", { roomId, characterId: c.id });
+    } else {
+      showFeedback("Error", "Disconnected. Please refresh to change character.", "error");
     }
   };
 
@@ -276,31 +258,6 @@ export default function Room() {
 
     const socket = getSocket();
     socket.emit("update-background", { roomId, backgroundId: bg.id });
-
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) return;
-
-      await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ backgroundId: bg.id }),
-        },
-      );
-    } catch {
-      setFeedbackDescription("Failed to save background. Please try again.");
-      setFeedbackVariant("error");
-      setFeedbackTitle("Error");
-      setFeedbackOpen(true);
-    }
   };
 
   const getTodoState = async (roomId: string) => {
