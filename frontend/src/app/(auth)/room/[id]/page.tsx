@@ -387,7 +387,7 @@ export default function Room() {
                 <Button
                   onClick={handleLeaveRoom}
                   variant="outline"
-                  className="flex items-center min-w-10 sm:min-w-14 h-full cursor-pointer flex-shrink-0"
+                  className="flex items-center min-w-10 sm:min-w-14 h-full cursor-pointer flex-shrink-0 border-2 border-(--dark-blue)"
                 >
                   <LogOut size={20} />
                 </Button>

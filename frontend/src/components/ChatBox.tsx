@@ -47,7 +47,7 @@ export default function ChatBox({ roomId, roomUsers }: ChatBoxProps) {
   useEffect(() => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
+      behavior: "auto",
     });
   }, [messages]);
 
@@ -107,7 +107,7 @@ export default function ChatBox({ roomId, roomUsers }: ChatBoxProps) {
               if (isOwn) {
                 return (
                   <div key={i} className="flex justify-end">
-                    <span className="font-mono text-sm text-(--dark-blue) bg-gray-100 border-2 border-(--dark-blue) rounded-2xl px-3 py-1 max-w-[80%] wrap-break-word">
+                    <span className="font-mono text-sm text-(--dark-blue) bg-gray-100 border-2 border-(--dark-blue)/20 rounded-2xl px-3 py-1 max-w-[80%] wrap-break-word">
                       {msg.message}
                     </span>
                   </div>
