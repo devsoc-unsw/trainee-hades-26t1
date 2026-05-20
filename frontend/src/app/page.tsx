@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -22,14 +22,14 @@ export default function Landing() {
       <div className="flex justify-center gap-5 text-sm mt-10">
         <Link
           href="/register"
-          className="font-bold font-mono pl-6 pr-6 p-3 border rounded-xl inline text-(--background) bg-(--dark-blue) border-(--dark-blue)"
+          className="font-bold font-mono pl-6 pr-6 p-3 border rounded-xl inline text-background bg-(--dark-blue) border-(--dark-blue)"
         >
           Get Started
         </Link>
         <Link
           // TODO: link to where?
           href="/about"
-          className="font-mono pl-6 pr-6 p-3 border rounded-xl inline bg-(--background) border-(--dark-blue)"
+          className="font-mono pl-6 pr-6 p-3 border rounded-xl inline bg-background border-(--dark-blue)"
         >
           Learn More
         </Link>
