@@ -1,6 +1,6 @@
 "use client";
 
-import { Icon } from "lucide-react";
+import { Eye, EyeOff, Icon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +28,7 @@ export function PasswordPromptModal({
   description,
   actionLabel,
 }: PasswordPromptModalProps) {
-  const [showPassword, setRoomPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
 
   return (
@@ -60,7 +60,7 @@ export function PasswordPromptModal({
                 />
                 <button
                   type="button"
-                  onClick={() => setRoomPassword((current) => !current)}
+                  onClick={() => setShowPassword((current) => !current)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   className="absolute inset-y-0 right-0 flex items-center justify-center px-3 text-gray-600 hover:text-(--dark-blue)"
                 >
