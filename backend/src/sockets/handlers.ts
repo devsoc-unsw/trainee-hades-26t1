@@ -320,12 +320,7 @@ export const roomHandler = (io: Server) => {
 
         user.characterId = characterId;
 
-        io.to(roomId).emit("room-state", {
-          users: Array.from(room.users.values()),
-          pomodoroState: room.pomodoroState,
-          todoState: room.todoState,
-          backgroundId: room.backgroundId,
-        });
+        io.to(roomId).emit("character-updated", { userId: session.userId, characterId });
       },
     );
 

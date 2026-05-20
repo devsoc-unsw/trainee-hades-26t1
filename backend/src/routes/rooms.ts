@@ -257,7 +257,7 @@ router.get("/:roomId/users", supabaseAuth, async (req: Request, res: Response) =
 
     const { data, error } = await supabaseClient
       .from("profiles")
-      .select("id, name")
+      .select("id, name, character_id")
       .eq("room", roomId);
 
     if (error) {
@@ -268,7 +268,8 @@ router.get("/:roomId/users", supabaseAuth, async (req: Request, res: Response) =
     // Map to RoomUser type
     const users = data.map((u: any) => ({
       userId: u.id,
-      name: u.name
+      name: u.name,
+      characterId: u.character_id,
     }));
 
     res.json(users);
