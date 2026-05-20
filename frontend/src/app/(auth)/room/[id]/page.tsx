@@ -505,7 +505,7 @@ export default function Room() {
                   variant="outline"
                   className="flex items-center min-w-10 sm:min-w-14 h-full cursor-pointer shrink-0 border-2 border-(--dark-blue)"
                 >
-                  <LogOut size={20} />
+                  <LogOut size={20} className="text-(--dark-blue)" />
                 </Button>
               </div>
 

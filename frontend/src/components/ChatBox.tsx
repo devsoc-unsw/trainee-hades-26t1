@@ -31,6 +31,36 @@ export default function ChatBox({ roomId, roomUsers }: ChatBoxProps) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadHistory = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) return;
+
+        const resp = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}/messages`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!resp.ok) return;
+
+        const history: ChatMessage[] = await resp.json();
+        if (!cancelled) setMessages(history);
+      } catch (err) {
+        console.error("[ChatBox] Failed to load message history:", err);
+      }
+    };
+
+    loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId]);
+
+  useEffect(() => {
     const socket = getSocket();
 
     const handleNewMessage = (msg: ChatMessage) => {
