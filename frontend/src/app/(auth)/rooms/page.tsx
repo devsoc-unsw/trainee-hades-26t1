@@ -1,10 +1,10 @@
 "use client";
+
 import Navbar from "@/components/Navbar";
 import FilterBar from "@/components/FilterBar";
 import RoomCard from "@/components/RoomCard";
 import Loading from "@/components/Loading";
-import { useState } from "react";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,14 +15,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { supabase } from '@/supabaseClient';
+import { supabase } from "@/supabaseClient";
 import { pixelify, poppins } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 import { FeedbackModal } from "@/components/FeedbackModal";
-import { getSocket, initSocket } from "@/lib/socket";
 import { Feedback } from "@/lib/types";
 import { backgrounds } from "@/lib/backgrounds";
-
 
 interface Room {
   id: number;
@@ -55,27 +53,27 @@ export default function Rooms() {
   const [newRoomLocation, setNewRoomLocation] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [loading, setLoading] = useState(true);
+
   const router = useRouter();
 
+  // ---------------- FILTER ----------------
   useEffect(() => {
     setFilteredRooms(
-      rooms.filter(
-        (room) =>
-          room.roomTitle.toLowerCase().includes(filter.toLowerCase()),
-      ),
+      rooms.filter((room) =>
+        room.roomTitle.toLowerCase().includes(filter.toLowerCase())
+      )
     );
-  }, [filter]);
+  }, [filter, rooms]);
 
   useEffect(() => {
     setFilter("");
   }, []);
 
+  // ---------------- CREATE ROOM ----------------
   const handleCreateRoom = async (title: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
-
-      console.log(`UserId: ${session?.user.id}`);
 
       if (!token) {
         setFeedback({
@@ -88,37 +86,34 @@ export default function Rooms() {
         return;
       }
 
-      const newRoom = {
-        roomTitle: title,
-        description: newRoomDescription,
-        location: newRoomLocation
-      }
-
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/room`,
+      const resp = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/room`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(newRoom)
+          body: JSON.stringify({
+            roomTitle: title,
+            description: newRoomDescription,
+            location: newRoomLocation,
+          }),
         }
       );
 
       if (!resp.ok) {
         const errorData = await resp.json();
-        console.error("Error creating room:", errorData.error);
         setFeedback({
           open: true,
           title: "Failed to create room",
-          description: errorData.error || "An unknown error occurred while creating the room.",
+          description: errorData.error,
           actionLabel: "Close",
           variant: "error",
         });
         return;
       }
 
-      const data = await resp.json();
       setIsModalOpen(false);
       setNewRoomTitle("");
       setNewRoomDescription("");
@@ -126,203 +121,125 @@ export default function Rooms() {
 
       setFeedback({
         open: true,
-        title: "Room created successfully",
-        description: "The room has been created successfully.",
+        title: "Room created",
+        description: "Your room has been created successfully.",
         actionLabel: "Close",
         variant: "success",
       });
 
       await handleGetRooms();
-    } catch (error) {
-      console.error("Error creating room:", error);
-      setFeedback({
-        open: true,
-        title: "Failed to create room",
-        description: "An unknown error occurred while creating the room.",
-        actionLabel: "Close",
-        variant: "error",
-      });
+    } catch (err) {
+      console.error(err);
     }
-  }
+  };
 
+  // ---------------- GET ROOMS ----------------
   const handleGetRooms = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
-      if (!token) {
-        setFeedback({
-          open: true,
-          title: "Authentication required",
-          description: "You must be logged in to view rooms.",
-          actionLabel: "Close",
-          variant: "error",
-        });
-        setLoading(false);
-        return;
-      }
+      if (!token) return;
 
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms`,
+      const resp = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms`,
         {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
 
-      if (!resp.ok) {
-        const errorData = await resp.json();
-        console.error("Error fetching rooms:", errorData.error);
-        setFeedback({
-          open: true,
-          title: "Failed to fetch rooms",
-          description: errorData.error || "An unknown error occurred while fetching rooms.",
-          actionLabel: "Close",
-          variant: "error",
-        });
-        setLoading(false);
-        return;
-      }
-
       const data = await resp.json();
-      console.log("Rooms fetched successfully:", data);
+
       setRooms(data);
       setFilteredRooms(data);
       setLoading(false);
-    } catch (error) {
-      console.error("Error fetching rooms:", error);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // ---------------- SWITCH ROOM ----------------
+  const leaveRoomAndJoin = async (roomId: number) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) return;
+
+      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/leave`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/join`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ roomId }),
+      });
+
+      router.push(`/room/${roomId}`);
+      setFeedback(null);
+    } catch (err) {
+      console.error(err);
       setFeedback({
         open: true,
-        title: "Failed to fetch rooms",
-        description: "An unknown error occurred while fetching rooms.",
+        title: "Failed to switch rooms",
+        description: "Please try again.",
         actionLabel: "Close",
         variant: "error",
       });
-      setLoading(false);
     }
-  }
+  };
 
+  // ---------------- JOIN ROOM ----------------
   const handleJoinRoom = async (roomId: number) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
-      if (!token) {
-        setFeedback({
-          open: true,
-          title: "Authentication required",
-          description: "You must be logged in to join a room.",
-          actionLabel: "Close",
-          variant: "error",
-        });
-        return;
-      }
+      if (!token) return;
 
-      const profileResp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
-        method: "GET",
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-
-      if (!profileResp.ok) {
-        const errorData = await profileResp.json();
-        setFeedback({
-          open: true,
-          title: "Failed to fetch profile",
-          description: errorData.error || "An unknown error occurred while fetching your profile.",
-          actionLabel: "Close",
-          variant: "error",
-        });
-        return;
-      }
+      const profileResp = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       const profileData = await profileResp.json();
 
+      // already in same room
       if (profileData.room === roomId) {
         router.push(`/room/${roomId}`);
         return;
       }
 
+      // already in another room → confirm modal
       if (profileData.room) {
         setFeedback({
           open: true,
           title: "Already in a room",
-          description: "You must leave your current room before joining a new one.",
-          actionLabel: "Close",
-          variant: "error",
+          description: "Leave your current room and join this one?",
+          actionLabel: "Leave & Join",
+          cancelLabel: "Cancel",
+          variant: "warning",
+          onAction: () => leaveRoomAndJoin(roomId),
         });
+
         return;
       }
 
-      const socket = initSocket(token, String(roomId));
-
-      socket.off("room-state");
-      socket.off("error");
-
-      const timeout = setTimeout(() => {
-        socket.off("room-state");
-        socket.off("error");
-        setFeedback({
-          open: true,
-          title: "Request timed out",
-          description: "The server did not respond. Please try again.",
-          actionLabel: "Close",
-          variant: "error",
-        });
-      }, 10000);
-
-      socket.once("room-state", async (data) => {
-        clearTimeout(timeout);
-        console.log("Successfully joined room:", data);
-
-        try {
-          const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify({ room: roomId })
-          });
-
-          if (!resp.ok) {
-            const errorData = await resp.json();
-            console.error("Error updating profile with room id:", errorData.error);
-            throw new Error(errorData.data || "Failed to update profile with room id");
-          }
-          router.push(`/room/${roomId}`);
-        } catch (err) {
-          console.error("Error updating profile with room id:", err);
-          setFeedback({
-            open: true,
-            title: "Failed to join room",
-            description: "An error occurred while updating your profile. Please try again.",
-            actionLabel: "Close",
-            variant: "error",
-          });
-        }
-      });
-
-      socket.once("error", (error) => {
-        clearTimeout(timeout);
-        console.error("Error joining room:", error);
-        setFeedback({
-          open: true,
-          title: "Failed to join room",
-          description: error.message || "An error occurred while joining the room.",
-          actionLabel: "Close",
-          variant: "error",
-        });
-      });
-
-      socket.emit("join-room", { roomId: String(roomId), token });
-
-    } catch (error) {
-      console.error("Error joining room:", error);
+      // direct join
+      await leaveRoomAndJoin(roomId);
+    } catch (err) {
+      console.error(err);
       setFeedback({
         open: true,
         title: "Failed to join room",
-        description: "An unknown error occurred while joining the room.",
+        description: "An unknown error occurred.",
         actionLabel: "Close",
         variant: "error",
       });
@@ -333,23 +250,20 @@ export default function Rooms() {
     handleGetRooms();
   }, []);
 
+  // ---------------- UI ----------------
   return (
     <div className="pt-18 overflow-x-hidden">
       <Navbar />
+
       <main className="px-10 py-8">
         {loading ? (
-          <div className="flex justify-center items-center min-h-96">
-            <Loading />
-          </div>
+          <Loading />
         ) : (
           <>
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between">
               <FilterBar value={filter} onChange={setFilter} />
-              <Button
-                variant="outline"
-                className="text-(--dark-blue) hover:text-(--dark-blue) border-(--dark-blue) border-2 cursor-pointer"
-                onClick={() => setIsModalOpen(true)}
-              >
+
+              <Button onClick={() => setIsModalOpen(true)}>
                 + New Room
               </Button>
             </div>
@@ -357,8 +271,8 @@ export default function Rooms() {
             <div className="grid grid-cols-3 gap-6 mt-8">
               {filteredRooms.map((room) => (
                 <RoomCard
-                  id={room.id}
                   key={room.id}
+                  id={room.id}
                   name={room.roomTitle}
                   location={room.location}
                   imageUrl={getRoomBackground(room)}
@@ -370,92 +284,62 @@ export default function Rooms() {
         )}
       </main>
 
+      {/* FEEDBACK MODAL */}
       <FeedbackModal
         open={feedback?.open ?? false}
         onOpenChange={(open) => {
-          if (!open) {
-            setFeedback(null);
-          }
+          if (!open) setFeedback(null);
         }}
         title={feedback?.title ?? ""}
         description={feedback?.description ?? ""}
         actionLabel={feedback?.actionLabel ?? "Close"}
         variant={feedback?.variant ?? "success"}
+        onAction={feedback?.onAction}
+        cancelLabel={feedback?.cancelLabel}
       />
 
+      {/* CREATE ROOM MODAL */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className={cn(poppins.className, "bg-(--light-blue) border-(--dark-blue)/15 rounded-lg p-6")}>
+        <DialogContent className={cn(poppins.className)}>
           <DialogHeader>
-            <DialogTitle className={`text-3xl font-bold text-(--dark-blue) ${pixelify.className}`}>Create New Room</DialogTitle>
-            <DialogDescription className="text-sm text-gray-600">
-              Enter a title, description, and location for your new room
+            <DialogTitle className={pixelify.className}>
+              Create Room
+            </DialogTitle>
+            <DialogDescription>
+              Enter details below
             </DialogDescription>
           </DialogHeader>
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (newRoomTitle.trim()) {
-                handleCreateRoom(newRoomTitle);
-              }
+              handleCreateRoom(newRoomTitle);
             }}
           >
-            <div className="flex flex-col gap-3 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Room Title
-                </label>
-                <input
-                  type="text"
-                  value={newRoomTitle}
-                  onChange={(e) => setNewRoomTitle(e.target.value)}
-                  placeholder="Enter room title"
-                  className="bg-(--dark-blue)/50 w-full px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  required
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Room Description
-                </label>
-                <textarea
-                  value={newRoomDescription}
-                  onChange={(e) => setNewRoomDescription(e.target.value)}
-                  placeholder="Enter room description"
-                  className="bg-(--dark-blue)/50 w-full max-h-32 px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Location
-                </label>
-                <input
-                  type="text"
-                  value={newRoomLocation}
-                  onChange={(e) => setNewRoomLocation(e.target.value)}
-                  placeholder="Enter room location"
-                  className="bg-(--dark-blue)/50 w-full px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  autoFocus
-                />
-              </div>
-            </div>
-            <DialogFooter className="flex justify-end gap-4 bg-transparent border-none">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsModalOpen(false);
-                  setNewRoomTitle("");
-                  setNewRoomDescription("");
-                  setNewRoomLocation("");
-                }}
-              >
+            <input
+              value={newRoomTitle}
+              onChange={(e) => setNewRoomTitle(e.target.value)}
+              placeholder="Title"
+            />
+
+            <textarea
+              value={newRoomDescription}
+              onChange={(e) => setNewRoomDescription(e.target.value)}
+              placeholder="Description"
+            />
+
+            <input
+              value={newRoomLocation}
+              onChange={(e) => setNewRoomLocation(e.target.value)}
+              placeholder="Location"
+            />
+
+            <DialogFooter>
+              <Button type="button" onClick={() => setIsModalOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" className="bg-(--dark-blue) hover:bg-blue-600 text-white">
-                Create Room
-              </Button>
+
+              <Button type="submit">Create</Button>
             </DialogFooter>
           </form>
         </DialogContent>
