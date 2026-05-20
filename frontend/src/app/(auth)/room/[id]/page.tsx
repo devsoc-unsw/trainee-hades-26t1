@@ -43,15 +43,34 @@ export default function Room() {
   const roomId = String(useParams().id);
   const router = useRouter();
 
-  const handleCharacterChange = (c: Character) => {
+  const handleCharacterChange = async (c: Character) => {
     setSelectedCharacter(c);
     setShowCharacterPicker(false);
 
     const socket = getSocket();
-    socket.emit("update-character", {
-      roomId,
-      characterId: c.id,
-    });
+    socket.emit("update-character", { roomId, characterId: c.id });
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ character_id: c.id }),
+      });
+    } catch {
+      setFeedbackDescription("Failed to save character. Please try again.");
+      setFeedbackVariant("error");
+      setFeedbackTitle("Error");
+      setFeedbackOpen(true);
+    }
   };
 
   // Helper function to show feedback modal
@@ -82,6 +101,12 @@ export default function Room() {
 
       const roomData = await resp.json();
       setData(roomData);
+
+      // Load saved background
+      if (roomData.backgroundId) {
+        const bg = backgrounds.find((b) => b.id === roomData.backgroundId);
+        if (bg) setSelectedBg(bg);
+      }
     } catch (error) {
       showFeedback(
         "Error",
@@ -89,6 +114,33 @@ export default function Room() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getSavedCharacter = async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      const resp = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (!resp.ok) return;
+
+      const profile = await resp.json();
+      if (profile.character_id) {
+        const c = characters.find((ch) => ch.id === profile.character_id);
+        if (c) setSelectedCharacter(c);
+      }
+    } catch {
+      // silently fail, default character is fine
     }
   };
 
@@ -218,11 +270,37 @@ export default function Room() {
     }
   };
 
-  const handleBgChange = (bg: (typeof backgrounds)[0]) => {
+  const handleBgChange = async (bg: (typeof backgrounds)[0]) => {
     setSelectedBg(bg);
     setShowPicker(false);
+
     const socket = getSocket();
     socket.emit("update-background", { roomId, backgroundId: bg.id });
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ backgroundId: bg.id }),
+        },
+      );
+    } catch {
+      setFeedbackDescription("Failed to save background. Please try again.");
+      setFeedbackVariant("error");
+      setFeedbackTitle("Error");
+      setFeedbackOpen(true);
+    }
   };
 
   const getTodoState = async (roomId: string) => {
@@ -260,6 +338,7 @@ export default function Room() {
 
   useEffect(() => {
     getRoomData(roomId);
+    getSavedCharacter();
     getTodoState(roomId);
     getRoomUsers(roomId);
   }, [roomId]);
@@ -390,9 +469,12 @@ export default function Room() {
                         )
                       }
                       maxLength={30}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && setIsEditing(false)
-                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          setIsEditing(false);
+                          if (data) updateRoomData(data);
+                        }
+                      }}
                       className="bg-transparent border-b border-white/50 outline-none w-full"
                     />
                   ) : (
@@ -405,7 +487,6 @@ export default function Room() {
                       className="cursor-pointer opacity-60 hover:opacity-100 hover:scale-110 transition-discrete shrink-0"
                       onClick={() => {
                         setIsEditing(false);
-                        // Update room data when user finishes editing
                         if (data) {
                           updateRoomData(data);
                         }
