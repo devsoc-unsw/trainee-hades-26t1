@@ -80,10 +80,10 @@ export default function About() {
 						{" "}
 						Studynook is a Social study platform built around a 2D interactive map which promotes productivity and light social interaction.
             {" "}
-            <span className="flexmb-10"/>
+            <span className="flex flex-col mb-5"/>
             Users can set and customise their room's study topic, and engage with multipler users through interactive pixel sprites inspired by gamification.
             {" "}
-            <br/>
+            <span className="flex flex-col mb-5"/>
             Each room contains a pomodoro and task list, with random bonding questions and chats during breaks to maintain user engagement.
 					</p>
 
