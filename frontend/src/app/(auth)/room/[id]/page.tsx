@@ -61,7 +61,10 @@ export default function Room() {
         body: JSON.stringify({ character_id: c.id }),
       });
     } catch {
-      toast.error("Failed to save character");
+      setFeedbackDescription("Failed to save character. Please try again.");
+      setFeedbackVariant("error");
+      setFeedbackTitle("Error");
+      setFeedbackOpen(true);
     }
   };
 
@@ -248,7 +251,10 @@ export default function Room() {
         body: JSON.stringify({ backgroundId: bg.id }),
       });
     } catch {
-      toast.error("Failed to save background");
+      setFeedbackDescription("Failed to save background. Please try again.");
+      setFeedbackVariant("error");
+      setFeedbackTitle("Error");
+      setFeedbackOpen(true);
     }
   };
 
@@ -394,7 +400,15 @@ export default function Room() {
                       setData(prev => prev ? { ...prev, roomTitle: e.target.value } : prev)
                     }
                     maxLength={30}
-                    onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        setIsEditing(false);
+                        // Update room data when user finishes editing
+                        if (data) {
+                          updateRoomData(data);
+                        }
+                      }
+                    }}
                     className="bg-transparent border-b border-white/50 outline-none w-full"
                   />
                 ) : (
