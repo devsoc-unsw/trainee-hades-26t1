@@ -5,8 +5,7 @@ const router: Router = Router();
 
 // GET /api/profile - Get user profile
 router.get("/", supabaseAuth, async (req: Request, res: Response) => {
-  try {    
-    // Get user ID from authenticated request
+  try {
     const supabaseClient = req.supabaseClient;
     if (!supabaseClient) {
       return res.status(500).json({ error: "Supabase client not initialized" });
@@ -16,12 +15,12 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
-    
+
     const { data, error } = await supabaseClient
-    .from("profiles")
-    .select("id, name, room, currency, avatar_url")
-    .eq("id", userId)
-    .single();
+      .from("profiles")
+      .select("id, name, room, currency, avatar_url, character_id")
+      .eq("id", userId)
+      .single();
 
     const email = req.authUser?.email;
 
@@ -29,7 +28,7 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
       console.error("Supabase error:", error);
       return res.status(500).json({ error: error.message });
     }
-    
+
     res.json({ ...data, email });
   } catch (err) {
     console.error(err);
@@ -44,37 +43,42 @@ router.put("/", supabaseAuth, async (req: Request, res: Response) => {
     if (!supabaseClient) {
       return res.status(500).json({ error: "Supabase client not initialized" });
     }
-    
+
     const userId = req.authUser?.id;
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
-    
-    const { name, avatar_url, room } = req.body;
-    
-    // Ensure at least 1 field is provided to update
-    if (!name && !avatar_url && room === undefined) {
-      return res.status(400).json({ error: "Please provide a name, avatar_url, or room to update" });
-    } 
-    
-    // Build an update object dynamically (only include fields that exist)
-    const updateData: { name?: string; avatar_url?: string; room?: number | null } = {};
+
+    const { name, avatar_url, room, character_id } = req.body;
+
+    if (!name && !avatar_url && room === undefined && !character_id) {
+      return res.status(400).json({ error: "Please provide at least one field to update" });
+    }
+
+    const updateData: {
+      name?: string;
+      avatar_url?: string;
+      room?: number | null;
+      character_id?: string;
+    } = {};
+
     if (name) updateData.name = name;
     if (avatar_url) updateData.avatar_url = avatar_url;
     if (room !== undefined) updateData.room = room;
+    if (character_id) updateData.character_id = character_id;
 
     const { data, error } = await supabaseClient
       .from("profiles")
       .update(updateData)
       .eq("id", userId)
-      .select("id, name, currency, avatar_url, room") 
+      .select("id, name, currency, avatar_url, room, character_id")
       .single();
-    
+
     if (error) {
       console.error("Supabase error:", error);
       return res.status(500).json({ error: error.message });
     }
-    
+
     res.json(data);
   } catch (err) {
     console.error(err);
@@ -94,7 +98,7 @@ router.get("/:userId", supabaseAuth, async (req: Request, res: Response) => {
 
     const { data, error } = await supabaseClient
       .from("profiles")
-      .select("id, name, room, currency, avatar_url")
+      .select("id, name, room, currency, avatar_url, character_id")
       .eq("id", userId)
       .single();
 
