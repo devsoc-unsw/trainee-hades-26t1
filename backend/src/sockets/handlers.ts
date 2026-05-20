@@ -990,7 +990,6 @@ export const roomHandler = (io: Server) => {
         if (room) {
           room.users.delete(userId);
           if (room.users.size === 0) {
-            // Only intentionally clicking "leave-room" button clears history.
             roomStates.delete(roomId);
           } else {
             socket.to(roomId).emit("user-left", { userId });
