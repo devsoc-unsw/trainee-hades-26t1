@@ -3,8 +3,7 @@ import Navbar from "@/components/Navbar";
 import FilterBar from "@/components/FilterBar";
 import RoomCard from "@/components/RoomCard";
 import Loading from "@/components/Loading";
-import { useState } from "react";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,10 +18,9 @@ import { supabase } from '@/supabaseClient';
 import { pixelify, poppins } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 import { FeedbackModal } from "@/components/FeedbackModal";
-import { getSocket, initSocket } from "@/lib/socket";
+import { initSocket } from "@/lib/socket";
 import { Feedback } from "@/lib/types";
 import { backgrounds } from "@/lib/backgrounds";
-
 
 interface Room {
   id: number;
@@ -59,12 +57,11 @@ export default function Rooms() {
 
   useEffect(() => {
     setFilteredRooms(
-      rooms.filter(
-        (room) =>
-          room.roomTitle.toLowerCase().includes(filter.toLowerCase()),
-      ),
+      rooms.filter((room) =>
+        room.roomTitle.toLowerCase().includes(filter.toLowerCase())
+      )
     );
-  }, [filter]);
+  }, [filter, rooms]);
 
   useEffect(() => {
     setFilter("");
@@ -74,8 +71,6 @@ export default function Rooms() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
-
-      console.log(`UserId: ${session?.user.id}`);
 
       if (!token) {
         setFeedback({
@@ -88,26 +83,21 @@ export default function Rooms() {
         return;
       }
 
-      const newRoom = {
-        roomTitle: title,
-        description: newRoomDescription,
-        location: newRoomLocation
-      }
-
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/room`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          body: JSON.stringify(newRoom)
-        }
-      );
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/room`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          roomTitle: title,
+          description: newRoomDescription,
+          location: newRoomLocation,
+        }),
+      });
 
       if (!resp.ok) {
         const errorData = await resp.json();
-        console.error("Error creating room:", errorData.error);
         setFeedback({
           open: true,
           title: "Failed to create room",
@@ -118,7 +108,6 @@ export default function Rooms() {
         return;
       }
 
-      const data = await resp.json();
       setIsModalOpen(false);
       setNewRoomTitle("");
       setNewRoomDescription("");
@@ -143,7 +132,7 @@ export default function Rooms() {
         variant: "error",
       });
     }
-  }
+  };
 
   const handleGetRooms = async () => {
     try {
@@ -162,18 +151,13 @@ export default function Rooms() {
         return;
       }
 
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms`,
-        {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        }
-      );
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms`, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
 
       if (!resp.ok) {
         const errorData = await resp.json();
-        console.error("Error fetching rooms:", errorData.error);
         setFeedback({
           open: true,
           title: "Failed to fetch rooms",
@@ -186,7 +170,6 @@ export default function Rooms() {
       }
 
       const data = await resp.json();
-      console.log("Rooms fetched successfully:", data);
       setRooms(data);
       setFilteredRooms(data);
       setLoading(false);
@@ -201,7 +184,80 @@ export default function Rooms() {
       });
       setLoading(false);
     }
-  }
+  };
+
+  // Leaves current room and joins new one
+  const leaveAndJoin = async (roomId: number) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      // Clear current room from profile
+      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ room: null }),
+      });
+
+      // Now join the new room via socket
+      await joinViaSocket(roomId, token);
+    } catch (error) {
+      console.error("Error switching rooms:", error);
+      setFeedback({
+        open: true,
+        title: "Failed to switch rooms",
+        description: "Please try again.",
+        actionLabel: "Close",
+        variant: "error",
+      });
+    }
+  };
+
+  const joinViaSocket = (roomId: number, token: string) => {
+    return new Promise<void>((resolve, reject) => {
+      const socket = initSocket(token, String(roomId));
+
+      socket.off("room-state");
+      socket.off("error");
+
+      const timeout = setTimeout(() => {
+        socket.off("room-state");
+        socket.off("error");
+        reject(new Error("Request timed out"));
+      }, 10000);
+
+      socket.once("room-state", async () => {
+        clearTimeout(timeout);
+        try {
+          const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify({ room: roomId }),
+          });
+
+          if (!resp.ok) throw new Error("Failed to update profile with room id");
+          router.push(`/room/${roomId}`);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+
+      socket.once("error", (error) => {
+        clearTimeout(timeout);
+        reject(new Error(error.message || "Failed to join room"));
+      });
+
+      socket.emit("join-room", { roomId: String(roomId), token });
+    });
+  };
 
   const handleJoinRoom = async (roomId: number) => {
     try {
@@ -238,85 +294,28 @@ export default function Rooms() {
 
       const profileData = await profileResp.json();
 
+      // Already in this room
       if (profileData.room === roomId) {
         router.push(`/room/${roomId}`);
         return;
       }
 
+      // Already in another room — show confirm dialog
       if (profileData.room) {
         setFeedback({
           open: true,
           title: "Already in a room",
-          description: "You must leave your current room before joining a new one.",
-          actionLabel: "Close",
-          variant: "error",
+          description: "Leave your current room and join this one?",
+          actionLabel: "Leave & Join",
+          cancelLabel: "Cancel",
+          variant: "warning",
+          onAction: () => leaveAndJoin(roomId),
         });
         return;
       }
 
-      const socket = initSocket(token, String(roomId));
-
-      socket.off("room-state");
-      socket.off("error");
-
-      const timeout = setTimeout(() => {
-        socket.off("room-state");
-        socket.off("error");
-        setFeedback({
-          open: true,
-          title: "Request timed out",
-          description: "The server did not respond. Please try again.",
-          actionLabel: "Close",
-          variant: "error",
-        });
-      }, 10000);
-
-      socket.once("room-state", async (data) => {
-        clearTimeout(timeout);
-        console.log("Successfully joined room:", data);
-
-        try {
-          const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify({ room: roomId })
-          });
-
-          if (!resp.ok) {
-            const errorData = await resp.json();
-            console.error("Error updating profile with room id:", errorData.error);
-            throw new Error(errorData.data || "Failed to update profile with room id");
-          }
-          router.push(`/room/${roomId}`);
-        } catch (err) {
-          console.error("Error updating profile with room id:", err);
-          setFeedback({
-            open: true,
-            title: "Failed to join room",
-            description: "An error occurred while updating your profile. Please try again.",
-            actionLabel: "Close",
-            variant: "error",
-          });
-        }
-      });
-
-      socket.once("error", (error) => {
-        clearTimeout(timeout);
-        console.error("Error joining room:", error);
-        setFeedback({
-          open: true,
-          title: "Failed to join room",
-          description: error.message || "An error occurred while joining the room.",
-          actionLabel: "Close",
-          variant: "error",
-        });
-      });
-
-      socket.emit("join-room", { roomId: String(roomId), token });
-
+      // Direct join
+      await joinViaSocket(roomId, token);
     } catch (error) {
       console.error("Error joining room:", error);
       setFeedback({
@@ -373,14 +372,14 @@ export default function Rooms() {
       <FeedbackModal
         open={feedback?.open ?? false}
         onOpenChange={(open) => {
-          if (!open) {
-            setFeedback(null);
-          }
+          if (!open) setFeedback(null);
         }}
         title={feedback?.title ?? ""}
         description={feedback?.description ?? ""}
         actionLabel={feedback?.actionLabel ?? "Close"}
         variant={feedback?.variant ?? "success"}
+        onAction={feedback?.onAction}
+        cancelLabel={feedback?.cancelLabel}
       />
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
