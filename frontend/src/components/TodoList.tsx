@@ -162,5 +162,7 @@ export default function TodoList({ roomId, todoState }: TodoListProps) {
             ))}
           </div>
         </div>
-        );
+      </div>
+    </div>
+  );
 }

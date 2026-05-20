@@ -395,19 +395,14 @@ export default function Room() {
 
               {/* Author and Room Description */}
               <div className="flex flex-col sm:flex-row w-full gap-2 sm:gap-6 text-(--dark-blue) sm:justify-between sm:items-center">
-                <div className="font-mono text-sm">
-                  {data?.description || ""}
-                </div>
+                <div className="font-mono text-sm">{data?.description || ""}</div>
                 <div className="bg-(--pastel-yellow) border-2 border-(--dark-blue) rounded-xl p-2 text-sm self-start sm:self-auto whitespace-nowrap">
-                  Created by:{" "}
-                  <span className="font-semibold">
-                    {createdBy || "Unknown"}
-                  </span>
+                  Created by: <span className="font-semibold">{createdBy || "Unknown"}</span>
                 </div>
               </div>
 
               {/* Study Nook — fixed height on mobile, flex-1 on xl */}
-              <div className="relative w-full h-55 sm:h-75 xl:h-auto xl:flex-1 bg-(--light-blue) border-4 border-(--dark-blue) rounded-xl overflow-hidden">
+              <div className="relative w-full h-[220px] sm:h-[300px] xl:h-auto xl:flex-1 bg-(--light-blue) border-4 border-(--dark-blue) rounded-xl overflow-hidden">
                 <Image
                   src={selectedBg.src}
                   alt="study room background"
@@ -417,107 +412,88 @@ export default function Room() {
                 />
                 <CharacterAnimation users={roomUsers} />
               </div>
+
+              {/* Picker Row */}
+              <div className="flex flex-wrap gap-3 items-start justify-start w-full">
+                {/* Background picker */}
+                <div className="flex items-start gap-2">
+                  <button
+                    onClick={() => setShowPicker(!showPicker)}
+                    className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
+                  >
+                    Background
+                  </button>
+
+                  {showPicker && (
+                    <div className="bg-(--dark-blue) border-2 border-(--dark-blue) rounded-xl p-3 flex gap-2 flex-wrap max-w-[260px] sm:max-w-none">
+                      {backgrounds.map(b => (
+                        <div key={b.id} className="flex flex-col items-center gap-1">
+                          <Image
+                            src={b.src}
+                            alt={b.label}
+                            width={80}
+                            height={56}
+                            onClick={() => handleBgChange(b)}
+                            className={`w-16 sm:w-20 h-12 sm:h-14 object-cover rounded-xl cursor-pointer border-2 ${selectedBg.id === b.id ? "border-white" : "border-transparent hover:border-white/50"
+                              }`}
+                          />
+                          <span className="text-white font-mono text-xs">{b.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Character picker */}
+                <div className="flex items-start gap-2">
+                  <button
+                    onClick={() => setShowCharacterPicker(!showCharacterPicker)}
+                    className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
+                  >
+                    Character
+                  </button>
+
+                  {showCharacterPicker && (
+                    <div className="bg-(--dark-blue) border-2 rounded-xl p-3 flex gap-2 flex-wrap">
+                      {characters.map((c) => (
+                        <div key={c.id} className="flex flex-col items-center gap-1">
+                          <div
+                            onClick={() => handleCharacterChange(c)}
+                            className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 flex-shrink-0 ${selectedCharacter.id === c.id
+                              ? "border-white"
+                              : "border-transparent"
+                              }`}
+                            style={{
+                              backgroundImage: `url(${c.src})`,
+                              backgroundRepeat: "no-repeat",
+                              backgroundSize: "auto 100%",
+                              backgroundPosition: "0px 0px",
+                              imageRendering: "pixelated",
+                            }}
+                          />
+                          <span className="text-white text-xs">{c.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
-            {/* Productivity Tools and Chat box! */}
-            <div className="w-full xl:w-1/3 flex flex-col gap-6 xl:gap-8 p-4 sm:p-6 xl:p-8 xl:overflow-y-auto xl:min-h-0">
-              <PomodoroTimer />
-              <TodoList />
+            {/* Productivity Tools (Pomodoro and Todo-List) */}
+            <div className="w-full xl:w-1/3 flex flex-col gap-8 p-8">
+              <PomodoroTimer roomId={roomId} />
+              <TodoList roomId={roomId} todoState={todoState} />
               <ChatBox roomId={roomId} roomUsers={roomUsers} />
             </div>
           </div>
-
-          {/* Picker Row */}
-          <div className="flex flex-wrap gap-3 items-start justify-start w-full px-4 sm:px-6 xl:px-8 pb-4 sm:pb-6 xl:pb-8">
-            {/* Background picker */}
-            <div className="relative">
-              <button
-                onClick={() => setShowPicker(!showPicker)}
-                className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
-              >
-                Background
-              </button>
-
-              {showPicker && (
-                <div className="absolute bottom-full mb-2 left-0 z-10 bg-(--dark-blue) border-2 border-(--dark-blue) rounded-xl p-3 flex gap-2 flex-wrap max-w-65 sm:max-w-none">
-                  {backgrounds.map((b) => (
-                    <div
-                      key={b.id}
-                      className="flex flex-col items-center gap-1"
-                    >
-                      <Image
-                        src={b.src}
-                        alt={b.label}
-                        width={80}
-                        height={56}
-                        onClick={() => handleBgChange(b)}
-                        className={`w-16 sm:w-20 h-12 sm:h-14 object-cover rounded-xl cursor-pointer border-2 ${selectedBg.id === b.id
-                            ? "border-white"
-                            : "border-transparent hover:border-white/50"
-                          }`}
-                      />
-                      <span className="text-white font-mono text-xs">
-                        {b.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Character picker */}
-            <div className="relative">
-              <button
-                onClick={() => setShowCharacterPicker((v) => !v)}
-                className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
-              >
-                Character
-              </button>
-
-              {showCharacterPicker && (
-                <div className="absolute bottom-full mb-2 left-0 z-10 bg-(--dark-blue) border-2 rounded-xl p-3 flex gap-2 flex-wrap">
-                  {characters.map((c) => (
-                    <div
-                      key={c.id}
-                      className="flex flex-col items-center gap-1"
-                    >
-                      <div
-                        onClick={() => handleCharacterChange(c)}
-                        className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 shrink-0 ${selectedCharacter.id === c.id
-                            ? "border-white"
-                            : "border-transparent"
-                          }`}
-                        style={{
-                          backgroundImage: `url(${c.src})`,
-                          backgroundRepeat: "no-repeat",
-                          backgroundSize: "auto 100%",
-                          backgroundPosition: "0px 0px",
-                          imageRendering: "pixelated",
-                        }}
-                      />
-                      <span className="text-white text-xs">{c.label}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Productivity Tools (Pomdoro and Todo-List) */}
-          <div className="w-full xl:w-1/3 flex flex-col gap-8 p-8">
-            <PomodoroTimer roomId={roomId} />
-            <TodoList roomId={roomId} todoState={todoState} />
-            {/* Chat Feature: To-be-implemented? */}
-            <div className="flex-1 bg-(--light-blue) border-4 border-(--dark-blue) text-(--dark-blue) rounded-[30px] p-6">
-              Welcome to your Study Nook!
-            </div>
-          </div>
-        </main>)}
+        </main>
+      )}
 
       <FeedbackModal
         open={feedbackOpen}
         onOpenChange={(open) => {
-          setFeedbackOpen(open)
+          setFeedbackOpen(open);
           if (!open) {
             setFeedbackTitle("");
             setFeedbackDescription("");
