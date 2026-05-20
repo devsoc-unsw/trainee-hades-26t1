@@ -27,12 +27,6 @@ interface RoomUser {
   characterId?: string;
 }
 
-interface RoomUser {
-  userId: string;
-  name: string;
-  characterId?: string;
-}
-
 interface RoomState {
   users: Map<string, RoomUser>;
   hostId: string | null;
@@ -125,7 +119,10 @@ async function fetchRoomStateFromSupabase(
       : null;
 
     const todoState = todosResult.data
-      ? { id: todosResult.data.id, items: todosResult.data.items }
+      ? { 
+          id: todosResult.data.id, 
+          items: todosResult.data.items || [] // Fallback to prevent null array crashes
+        }
       : null;
 
     const hostId = roomResult.data?.created_by || null;
@@ -311,24 +308,43 @@ export const roomHandler = (io: Server) => {
 
     socket.on(
       "update-character",
-      ({ roomId, characterId }: { roomId: string; characterId: string }) => {
+      async ({ roomId, characterId }: { roomId: string; characterId: string }) => {
         const session = socketUsers.get(socket.id);
-        if (!session) return;
+        if (!session) {
+          socket.emit("error", { message: "Session not found" });
+          return;
+        }
 
         const room = roomStates.get(roomId);
-        if (!room) return;
+        if (!room) {
+          socket.emit("error", { message: "Room not found" });
+          return;
+        }
 
         const user = room.users.get(session.userId);
         if (!user) return;
 
         user.characterId = characterId;
 
-        io.to(roomId).emit("room-state", {
-          users: Array.from(room.users.values()),
-          pomodoroState: room.pomodoroState,
-          todoState: room.todoState,
-          backgroundId: room.backgroundId,
+        io.to(roomId).emit("character-updated", { 
+          userId: session.userId, 
+          characterId 
         });
+
+        try {
+          const client = createSupabaseClient(session.token);
+          const { error } = await client
+            .from("profiles")
+            .update({ character_id: characterId })
+            .eq("id", session.userId);
+
+          if (error) {
+            console.error(`Failed to save character for user ${session.userId}:`, error.message);
+            socket.emit("error", { message: "Failed to save character to database" });
+          }
+        } catch (err) {
+          console.error("update-character DB exception:", err);
+        }
       },
     );
 
@@ -357,23 +373,22 @@ export const roomHandler = (io: Server) => {
       async ({ roomId, item }: { roomId: string; item: TodoItem }) => {
         console.log("[Handler] add-todo received:", { roomId, item });
         const session = socketUsers.get(socket.id);
-        console.log(
-          "[Handler] session lookup:",
-          session ? "found" : "NOT FOUND",
-        );
+        
         if (!session || session.roomId !== roomId) {
-          console.log(
-            "[Handler] Authorization failed: socket not in socketUsers or roomId mismatch",
-          );
+          console.log("[Handler] Authorization failed: socket not in socketUsers or roomId mismatch");
           socket.emit("error", { message: "Unauthorized or room mismatch" });
           return;
         }
 
         const room = roomStates.get(roomId);
-        console.log("[Handler] room lookup:", room ? "found" : "NOT FOUND");
         if (!room) {
           socket.emit("error", { message: "Room not found" });
           return;
+        }
+
+        // Ensure array isn't null if missing
+        if (room.todoState && !room.todoState.items) {
+          room.todoState.items = [];
         }
 
         // Check for duplicates before proceeding
@@ -386,41 +401,54 @@ export const roomHandler = (io: Server) => {
           return;
         }
 
-        // Initialize todoState if it doesn't exist
+        // Initialize todoState if it doesn't exist in memory by fetching the trigger-created row
         if (!room.todoState) {
-          console.log("[Handler] Initializing todoState for room:", roomId);
+          console.log("[Handler] Fetching trigger-created todoState for room:", roomId);
           try {
-            const { data, error: insertError } = await createSupabaseClient(
-              session.token,
-            )
+            const client = createSupabaseClient(session.token);
+
+            // Fetch existing row created by the DB trigger
+            const { data: existingTodo, error: fetchError } = await client
               .from("todos")
-              .insert({ room_id: roomId, items: [item] })
+              .select("id, items")
+              .eq("room_id", roomId)
+              .single();
+
+            if (fetchError || !existingTodo) {
+              console.error("add-todo fetch existing failed:", fetchError);
+              socket.emit("error", { message: "Failed to locate room's todo list" });
+              return;
+            }
+
+            // Append item and Update
+            const currentItems = existingTodo.items || [];
+            currentItems.push(item);
+
+            const { data, error: updateError } = await client
+              .from("todos")
+              .update({ items: currentItems })
+              .eq("id", existingTodo.id)
               .select()
               .single();
 
-            if (insertError || !data) {
-              console.error("add-todo insert failed:", insertError);
-              socket.emit("error", {
-                message: "Failed to create todo list",
-              });
+            if (updateError || !data) {
+              console.error("add-todo update failed:", updateError);
+              socket.emit("error", { message: "Failed to save todo list" });
               return;
             }
 
             room.todoState = {
               id: data.id,
-              items: data.items || [item],
+              items: data.items || [],
             };
-            console.log(
-              "[Handler] todoState initialized with ID:",
-              room.todoState.id,
-            );
+            console.log("[Handler] todoState loaded and updated with ID:", room.todoState.id);
           } catch (err) {
-            console.error("add-todo insert exception:", err);
+            console.error("add-todo fetch/update exception:", err);
             socket.emit("error", { message: "Internal server error" });
             return;
           }
         } else {
-          // TodoState exists, add to it
+          // TodoState exists in memory, append to it
           console.log("[Handler] Adding item to existing todoState");
           room.todoState.items.push(item);
           const saved = await saveTodosToSupabase(
@@ -430,12 +458,9 @@ export const roomHandler = (io: Server) => {
           );
 
           if (!saved) {
-            // Revert the in-memory change if save failed
-            room.todoState.items.pop();
+            room.todoState.items.pop(); // Revert on failure
             console.log("[Handler] Save failed, reverted change");
-            socket.emit("error", {
-              message: "Failed to save todo",
-            });
+            socket.emit("error", { message: "Failed to save todo" });
             return;
           }
         }
@@ -449,42 +474,31 @@ export const roomHandler = (io: Server) => {
     socket.on(
       "remove-todo",
       async ({ roomId, todoId }: { roomId: string; todoId: string }) => {
-        console.log("[Handler] remove-todo received:", { roomId, todoId });
         const session = socketUsers.get(socket.id);
-        console.log(
-          "[Handler] session lookup:",
-          session ? "found" : "NOT FOUND",
-        );
         if (!session || session.roomId !== roomId) {
-          console.log("[Handler] Authorization failed");
           socket.emit("error", { message: "Unauthorized or room mismatch" });
           return;
         }
 
         const room = roomStates.get(roomId);
         if (!room?.todoState) {
-          console.log("[Handler] No todoState found");
           socket.emit("error", { message: "No todos to remove" });
           return;
         }
+
+        // Failsafe
+        if (!room.todoState.items) room.todoState.items = [];
 
         const initialLength = room.todoState.items.length;
         room.todoState.items = room.todoState.items.filter(
           (i) => i.id !== todoId,
         );
 
-        // If item wasn't found, it was already removed (race condition) - just sync state
         if (room.todoState.items.length === initialLength) {
-          console.log(
-            "[Handler] Todo already removed (race condition):",
-            todoId,
-          );
-          // Broadcast current state so all users stay synced
           io.to(roomId).emit("todo-updated", { todoState: room.todoState });
           return;
         }
 
-        console.log("[Handler] Saving updated todos to DB");
         const saved = await saveTodosToSupabase(
           room.todoState.id,
           room.todoState.items,
@@ -492,16 +506,13 @@ export const roomHandler = (io: Server) => {
         );
 
         if (!saved) {
-          // Revert the in-memory change if save failed
           room.todoState.items = room.todoState.items.concat(
-            { id: todoId, text: "", completed: false }, // placeholder
+            { id: todoId, text: "", completed: false }, 
           );
-          console.log("[Handler] Save failed, reverted change");
           socket.emit("error", { message: "Failed to remove todo" });
           return;
         }
 
-        console.log("[Handler] Broadcasting todo-updated to room:", roomId);
         io.to(roomId).emit("todo-updated", { todoState: room.todoState });
       },
     );
@@ -518,45 +529,29 @@ export const roomHandler = (io: Server) => {
         todoId: string;
         changes: Partial<Omit<TodoItem, "id">>;
       }) => {
-        console.log("[Handler] update-todo received:", {
-          roomId,
-          todoId,
-          changes,
-        });
         const session = socketUsers.get(socket.id);
-        console.log(
-          "[Handler] session lookup:",
-          session ? "found" : "NOT FOUND",
-        );
         if (!session || session.roomId !== roomId) {
-          console.log("[Handler] Authorization failed");
           socket.emit("error", { message: "Unauthorized or room mismatch" });
           return;
         }
 
         const room = roomStates.get(roomId);
         if (!room?.todoState) {
-          console.log("[Handler] No todoState found");
           socket.emit("error", { message: "No todos to update" });
           return;
         }
 
+        if (!room.todoState.items) room.todoState.items = [];
+
         const item = room.todoState.items.find((i) => i.id === todoId);
         if (!item) {
-          console.log("[Handler] Todo not found:", todoId);
           socket.emit("error", { message: "Todo not found" });
           return;
         }
 
-        // Store original state in case we need to revert
         const originalItem = { ...item };
-        console.log("[Handler] Updating item:", {
-          original: originalItem,
-          changes,
-        });
         Object.assign(item, changes);
 
-        console.log("[Handler] Saving updated todos to DB");
         const saved = await saveTodosToSupabase(
           room.todoState.id,
           room.todoState.items,
@@ -564,14 +559,11 @@ export const roomHandler = (io: Server) => {
         );
 
         if (!saved) {
-          // Revert the in-memory change if save failed
           Object.assign(item, originalItem);
-          console.log("[Handler] Save failed, reverted change");
           socket.emit("error", { message: "Failed to update todo" });
           return;
         }
 
-        console.log("[Handler] Broadcasting todo-updated to room:", roomId);
         io.to(roomId).emit("todo-updated", { todoState: room.todoState });
       },
     );
@@ -627,49 +619,33 @@ export const roomHandler = (io: Server) => {
         return;
       }
 
-      // Host Bouncer Check
-      if (session.userId !== room.hostId) {
-        socket.emit("error", { message: "Only host can control timer" });
-        return;
-      }
-
-      // Initialize pomodoroState if it doesn't exist
+      // Initialize pomodoroState if missing by fetching the trigger-created row
       if (!room.pomodoroState) {
         const client = createSupabaseClient(session.token);
-        const defaultDuration = 25 * 60 * 1000; // 25 minutes in ms
-
-        const { data: newPomo, error: createError } = await client
+        const { data: existingPomo, error: fetchError } = await client
           .from("pomos")
-          .insert([
-            {
-              room_id: roomId,
-              duration: defaultDuration,
-              status: "idle",
-              mode: "pomodoro",
-              remaining_time: defaultDuration,
-              end_time: null,
-            },
-          ])
-          .select()
+          .select("*")
+          .eq("room_id", roomId)
+          .order("created_at", { ascending: false })
+          .limit(1)
           .single();
 
-        if (createError || !newPomo) {
-          console.error("Error creating default pomos:", createError);
-          socket.emit("error", { message: "Failed to create timer" });
+        if (fetchError || !existingPomo) {
+          console.error("Error fetching trigger-created pomos:", fetchError);
+          socket.emit("error", { message: "Failed to load timer" });
           return;
         }
 
         room.pomodoroState = {
-          id: newPomo.id,
-          duration: newPomo.duration,
-          status: newPomo.status,
-          mode: newPomo.mode,
-          endTime: newPomo.end_time,
-          remainingTime: newPomo.remaining_time,
+          id: existingPomo.id,
+          duration: existingPomo.duration,
+          status: existingPomo.status,
+          mode: existingPomo.mode,
+          endTime: existingPomo.end_time,
+          remainingTime: existingPomo.remaining_time,
         };
       }
 
-      // Calculate endTime: current time + remainingTime (or duration if no remaining)
       const timeToAdd =
         room.pomodoroState.remainingTime ||
         room.pomodoroState.duration ||
@@ -677,16 +653,13 @@ export const roomHandler = (io: Server) => {
       const now = Date.now();
       const endTime = now + timeToAdd;
 
-      // Update memory
       room.pomodoroState.status = "running";
       room.pomodoroState.endTime = endTime;
 
-      // Broadcast timer-updated to room
       io.to(roomId).emit("timer-updated", {
         ...room.pomodoroState,
       });
 
-      // Async DB update (fire and forget)
       const client = createSupabaseClient(session.token);
       void client
         .from("pomos")
@@ -696,9 +669,7 @@ export const roomHandler = (io: Server) => {
         })
         .eq("id", room.pomodoroState.id)
         .then(() => {
-          console.log(
-            `Updated pomo ${room.pomodoroState?.id} status to running`,
-          );
+          console.log(`Updated pomo ${room.pomodoroState?.id} status to running`);
         });
     });
 
@@ -716,49 +687,33 @@ export const roomHandler = (io: Server) => {
         return;
       }
 
-      // Host Bouncer Check
-      if (session.userId !== room.hostId) {
-        socket.emit("error", { message: "Only host can control timer" });
-        return;
-      }
-
-      // Initialize pomodoroState if it doesn't exist
+      // Initialize pomodoroState if missing by fetching the trigger-created row
       if (!room.pomodoroState) {
         const client = createSupabaseClient(session.token);
-        const defaultDuration = 25 * 60 * 1000;
-
-        const { data: newPomo, error: createError } = await client
+        const { data: existingPomo, error: fetchError } = await client
           .from("pomos")
-          .insert([
-            {
-              room_id: roomId,
-              duration: defaultDuration,
-              status: "idle",
-              mode: "pomodoro",
-              remaining_time: defaultDuration,
-              end_time: null,
-            },
-          ])
-          .select()
+          .select("*")
+          .eq("room_id", roomId)
+          .order("created_at", { ascending: false })
+          .limit(1)
           .single();
 
-        if (createError || !newPomo) {
-          console.error("Error creating default pomos:", createError);
-          socket.emit("error", { message: "Failed to create timer" });
+        if (fetchError || !existingPomo) {
+          console.error("Error fetching trigger-created pomos:", fetchError);
+          socket.emit("error", { message: "Failed to load timer" });
           return;
         }
 
         room.pomodoroState = {
-          id: newPomo.id,
-          duration: newPomo.duration,
-          status: newPomo.status,
-          mode: newPomo.mode,
-          endTime: newPomo.end_time,
-          remainingTime: newPomo.remaining_time,
+          id: existingPomo.id,
+          duration: existingPomo.duration,
+          status: existingPomo.status,
+          mode: existingPomo.mode,
+          endTime: existingPomo.end_time,
+          remainingTime: existingPomo.remaining_time,
         };
       }
 
-      // Calculate remainingTime from endTime
       let remainingTime = room.pomodoroState.remainingTime || 0;
       if (
         room.pomodoroState.endTime &&
@@ -768,17 +723,14 @@ export const roomHandler = (io: Server) => {
         remainingTime = Math.max(0, room.pomodoroState.endTime - now);
       }
 
-      // Update memory
       room.pomodoroState.status = "paused";
       room.pomodoroState.remainingTime = remainingTime;
       room.pomodoroState.endTime = null;
 
-      // Broadcast timer-updated to room
       io.to(roomId).emit("timer-updated", {
         ...room.pomodoroState,
       });
 
-      // Async DB update
       const client = createSupabaseClient(session.token);
       void client
         .from("pomos")
@@ -789,9 +741,7 @@ export const roomHandler = (io: Server) => {
         })
         .eq("id", room.pomodoroState.id)
         .then(() => {
-          console.log(
-            `Updated pomo ${room.pomodoroState?.id} status to paused`,
-          );
+          console.log(`Updated pomo ${room.pomodoroState?.id} status to paused`);
         });
     });
 
@@ -809,20 +759,12 @@ export const roomHandler = (io: Server) => {
         return;
       }
 
-      // Host Bouncer Check
-      if (session.userId !== room.hostId) {
-        socket.emit("error", { message: "Only host can control timer" });
-        return;
-      }
-
-      // Validate mode
       const validModes = ["pomodoro", "short_break", "long_break"];
       if (!validModes.includes(mode)) {
         socket.emit("error", { message: "Invalid mode" });
         return;
       }
 
-      // Update custom durations if provided
       if (durations) {
         room.customDurations = {
           pomo: durations.pomo || room.customDurations.pomo,
@@ -831,52 +773,33 @@ export const roomHandler = (io: Server) => {
         };
       }
 
-      // Initialize pomodoroState if it doesn't exist
+      // Initialize pomodoroState if missing by fetching the trigger-created row
       if (!room.pomodoroState) {
         const client = createSupabaseClient(session.token);
-        const modeSettingsMinutes = {
-          pomodoro: room.customDurations.pomo,
-          short_break: room.customDurations.short,
-          long_break: room.customDurations.long,
-        };
-        const defaultDurationMs =
-          (modeSettingsMinutes[mode as keyof typeof modeSettingsMinutes] ||
-            25) *
-          60 *
-          1000;
-
-        const { data: newPomo, error: createError } = await client
+        const { data: existingPomo, error: fetchError } = await client
           .from("pomos")
-          .insert([
-            {
-              room_id: roomId,
-              duration: defaultDurationMs,
-              status: "idle",
-              mode,
-              remaining_time: defaultDurationMs,
-              end_time: null,
-            },
-          ])
-          .select()
+          .select("*")
+          .eq("room_id", roomId)
+          .order("created_at", { ascending: false })
+          .limit(1)
           .single();
 
-        if (createError || !newPomo) {
-          console.error("Error creating default pomos:", createError);
-          socket.emit("error", { message: "Failed to create timer" });
+        if (fetchError || !existingPomo) {
+          console.error("Error fetching trigger-created pomos:", fetchError);
+          socket.emit("error", { message: "Failed to load timer" });
           return;
         }
 
         room.pomodoroState = {
-          id: newPomo.id,
-          duration: newPomo.duration,
-          status: newPomo.status,
-          mode: newPomo.mode,
-          endTime: newPomo.end_time,
-          remainingTime: newPomo.remaining_time,
+          id: existingPomo.id,
+          duration: existingPomo.duration,
+          status: existingPomo.status,
+          mode: existingPomo.mode,
+          endTime: existingPomo.end_time,
+          remainingTime: existingPomo.remaining_time,
         };
       }
 
-      // Calculate duration based on mode using custom durations
       const modeToCustomKey: { [key: string]: "pomo" | "short" | "long" } = {
         pomodoro: "pomo",
         short_break: "short",
@@ -886,19 +809,16 @@ export const roomHandler = (io: Server) => {
       const durationMinutes = room.customDurations[customKey];
       const duration = durationMinutes * 60 * 1000;
 
-      // Update memory
       room.pomodoroState.mode = mode;
       room.pomodoroState.status = "idle";
       room.pomodoroState.remainingTime = duration;
       room.pomodoroState.duration = duration;
       room.pomodoroState.endTime = null;
 
-      // Broadcast timer-updated to room
       io.to(roomId).emit("timer-updated", {
         ...room.pomodoroState,
       });
 
-      // Async DB update (fire and forget)
       const client = createSupabaseClient(session.token);
       void client
         .from("pomos")
@@ -906,6 +826,7 @@ export const roomHandler = (io: Server) => {
           mode,
           status: "idle",
           remaining_time: duration,
+          duration: duration,
           end_time: null,
         })
         .eq("id", room.pomodoroState.id)
@@ -930,7 +851,6 @@ export const roomHandler = (io: Server) => {
           return;
         }
 
-        // Validate user is a member of this room
         const client = createSupabaseClient(session.token);
         const { data: profileData, error: profileError } = await client
           .from("profiles")
@@ -950,13 +870,11 @@ export const roomHandler = (io: Server) => {
           return;
         }
 
-        // Build update object with only provided fields
         const updateData: any = {};
         if (roomTitle !== undefined) updateData.room_title = roomTitle;
         if (description !== undefined) updateData.description = description;
         if (location !== undefined) updateData.location = location;
 
-        // Ensure at least one field is provided
         if (Object.keys(updateData).length === 0) {
           socket.emit("error", {
             message: "Please provide at least one field to update",
@@ -964,7 +882,6 @@ export const roomHandler = (io: Server) => {
           return;
         }
 
-        // Update database
         const { data: updatedRoom, error: updateError } = await client
           .from("rooms")
           .update(updateData)
@@ -980,12 +897,11 @@ export const roomHandler = (io: Server) => {
           return;
         }
 
-        // Broadcast updated room data to all users in the room
         io.to(roomId).emit("room-updated", updatedRoom);
       },
     );
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async() => {
       const session = socketUsers.get(socket.id);
       if (session) {
         const { userId, roomId } = session;
@@ -999,6 +915,14 @@ export const roomHandler = (io: Server) => {
             socket.to(roomId).emit("user-left", { userId });
           }
         }
+
+        // Clear room from database
+        const client = createSupabaseClient(session.token);
+        await client
+          .from("profiles")
+          .update({ room: null })
+          .eq("id", session.userId);
+        console.log(`User ${userId} disconnected and left room ${roomId}`);
       }
       console.log(`User disconnected: ${socket.id}`);
     });

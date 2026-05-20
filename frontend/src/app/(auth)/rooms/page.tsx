@@ -3,8 +3,7 @@ import Navbar from "@/components/Navbar";
 import FilterBar from "@/components/FilterBar";
 import RoomCard from "@/components/RoomCard";
 import Loading from "@/components/Loading";
-import { useState } from "react";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,7 +48,9 @@ const getRoomBackground = (room: Room) => {
 export default function Rooms() {
   const [filter, setFilter] = useState("");
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
+  const filteredRooms = rooms.filter((room) =>
+    room.roomTitle.toLowerCase().includes(filter.toLowerCase())
+  );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newRoomTitle, setNewRoomTitle] = useState("");
   const [newRoomDescription, setNewRoomDescription] = useState("");
@@ -62,14 +63,6 @@ export default function Rooms() {
   const router = useRouter();
 
   useEffect(() => {
-    setFilteredRooms(
-      rooms.filter((room) =>
-        room.roomTitle.toLowerCase().includes(filter.toLowerCase()),
-      ),
-    );
-  }, [filter]);
-
-  useEffect(() => {
     setFilter("");
   }, []);
 
@@ -79,8 +72,6 @@ export default function Rooms() {
         data: { session },
       } = await supabase.auth.getSession();
       const token = session?.access_token;
-
-      console.log(`UserId: ${session?.user.id}`);
 
       if (!token) {
         setFeedback({
@@ -114,7 +105,6 @@ export default function Rooms() {
 
       if (!resp.ok) {
         const errorData = await resp.json();
-        console.error("Error creating room:", errorData.error);
         setFeedback({
           open: true,
           title: "Failed to create room",
@@ -127,7 +117,6 @@ export default function Rooms() {
         return;
       }
 
-      const data = await resp.json();
       setIsModalOpen(false);
       setNewRoomTitle("");
       setNewRoomDescription("");
@@ -176,19 +165,13 @@ export default function Rooms() {
         return;
       }
 
-      const resp = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms`, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
 
       if (!resp.ok) {
         const errorData = await resp.json();
-        console.error("Error fetching rooms:", errorData.error);
         setFeedback({
           open: true,
           title: "Failed to fetch rooms",
@@ -203,9 +186,7 @@ export default function Rooms() {
       }
 
       const data = await resp.json();
-      console.log("Rooms fetched successfully:", data);
       setRooms(data);
-      setFilteredRooms(data);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching rooms:", error);
@@ -217,6 +198,47 @@ export default function Rooms() {
         variant: "error",
       });
       setLoading(false);
+    }
+  };
+
+  // Leaves current room and joins new one
+  // Leaves current room and joins new one
+  const leaveAndJoin = async (newRoomId: number, oldRoomId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      // 1. Explicitly emit leave-room for the old room (This fixes the ghost user bug!)
+      const socket = getSocket();
+      if (socket?.connected) {
+        socket.emit("leave-room", {
+          roomId: String(oldRoomId),
+          userId: session.user.id
+        });
+      }
+
+      // 2. Update profile to the new room via REST
+      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ room: newRoomId }), // Put them directly in the new room
+      });
+
+      // 3. Route! (The Room.tsx component will mount and handle socket initialization)
+      router.push(`/room/${newRoomId}`);
+    } catch (error) {
+      console.error("Error switching rooms:", error);
+      setFeedback({
+        open: true,
+        title: "Failed to switch rooms",
+        description: "Please try again.",
+        actionLabel: "Close",
+        variant: "error",
+      });
     }
   };
 
@@ -262,95 +284,35 @@ export default function Rooms() {
 
       const profileData = await profileResp.json();
 
+      // Already in this room
       if (profileData.room === roomId) {
         router.push(`/room/${roomId}`);
         return;
       }
 
+      // Already in another room — show confirm dialog
       if (profileData.room) {
         setFeedback({
           open: true,
           title: "Already in a room",
-          description:
-            "You must leave your current room before joining a new one.",
-          actionLabel: "Close",
-          variant: "error",
+          description: "Leave your current room and join this one?",
+          actionLabel: "Leave & Join",
+          cancelLabel: "Cancel",
+          variant: "warning",
+          onAction: () => leaveAndJoin(roomId, profileData.room),
         });
         return;
       }
 
-      const socket = initSocket(token, String(roomId));
-
-      socket.off("room-state");
-      socket.off("error");
-
-      const timeout = setTimeout(() => {
-        socket.off("room-state");
-        socket.off("error");
-        setFeedback({
-          open: true,
-          title: "Request timed out",
-          description: "The server did not respond. Please try again.",
-          actionLabel: "Close",
-          variant: "error",
-        });
-      }, 10000);
-
-      socket.once("room-state", async (data) => {
-        clearTimeout(timeout);
-        console.log("Successfully joined room:", data);
-
-        try {
-          const resp = await fetch(
-            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`,
-            {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({ room: roomId }),
-            },
-          );
-
-          if (!resp.ok) {
-            const errorData = await resp.json();
-            console.error(
-              "Error updating profile with room id:",
-              errorData.error,
-            );
-            throw new Error(
-              errorData.data || "Failed to update profile with room id",
-            );
-          }
-          router.push(`/room/${roomId}`);
-        } catch (err) {
-          console.error("Error updating profile with room id:", err);
-          setFeedback({
-            open: true,
-            title: "Failed to join room",
-            description:
-              "An error occurred while updating your profile. Please try again.",
-            actionLabel: "Close",
-            variant: "error",
-          });
-        }
+      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ room: roomId }),
       });
-
-      socket.once("error", (error) => {
-        clearTimeout(timeout);
-        console.error("Error joining room:", error);
-        setFeedback({
-          open: true,
-          title: "Failed to join room",
-          description:
-            error.message || "An error occurred while joining the room.",
-          actionLabel: "Close",
-          variant: "error",
-        });
-      });
-
-      socket.emit("join-room", { roomId: String(roomId), token });
+      router.push(`/room/${roomId}`);
     } catch (error) {
       console.error("Error joining room:", error);
       setFeedback({
@@ -407,14 +369,14 @@ export default function Rooms() {
       <FeedbackModal
         open={feedback?.open ?? false}
         onOpenChange={(open) => {
-          if (!open) {
-            setFeedback(null);
-          }
+          if (!open) setFeedback(null);
         }}
         title={feedback?.title ?? ""}
         description={feedback?.description ?? ""}
         actionLabel={feedback?.actionLabel ?? "Close"}
         variant={feedback?.variant ?? "success"}
+        onAction={feedback?.onAction}
+        cancelLabel={feedback?.cancelLabel}
       />
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

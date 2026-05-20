@@ -43,33 +43,15 @@ export default function Room() {
   const roomId = String(useParams().id);
   const router = useRouter();
 
-  const handleCharacterChange = async (c: Character) => {
+  const handleCharacterChange = (c: Character) => {
     setSelectedCharacter(c);
     setShowCharacterPicker(false);
 
     const socket = getSocket();
-    socket.emit("update-character", { roomId, characterId: c.id });
-
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) return;
-
-      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ character_id: c.id }),
-      });
-    } catch {
-      setFeedbackDescription("Failed to save character. Please try again.");
-      setFeedbackVariant("error");
-      setFeedbackTitle("Error");
-      setFeedbackOpen(true);
+    if (socket.connected) {
+      socket.emit("update-character", { roomId, characterId: c.id });
+    } else {
+      showFeedback("Error", "Disconnected. Please refresh to change character.", "error");
     }
   };
 
@@ -274,31 +256,6 @@ export default function Room() {
 
     const socket = getSocket();
     socket.emit("update-background", { roomId, backgroundId: bg.id });
-
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) return;
-
-      await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ backgroundId: bg.id }),
-        },
-      );
-    } catch {
-      setFeedbackDescription("Failed to save background. Please try again.");
-      setFeedbackVariant("error");
-      setFeedbackTitle("Error");
-      setFeedbackOpen(true);
-    }
   };
 
   const getTodoState = async (roomId: string) => {
@@ -323,7 +280,8 @@ export default function Room() {
         },
       );
       if (!resp.ok) {
-        throw new Error("Failed to fetch todo state");
+        const errorResp = await resp.json();
+        throw new Error(errorResp || "Failed to fetch todo state");
       }
       const data = await resp.json();
       console.log("[RoomPage] Fetched todoState from REST API:", data);
@@ -369,18 +327,25 @@ export default function Room() {
       // Listen for room updates from other users or this user
       socket.on("room-updated", (updatedRoom) => {
         setData(updatedRoom);
+        getRoomUsers(roomId);
       });
 
       // Handle room state initialization from socket
       socket.on(
         "room-state",
         (state: {
-          users: string[];
+          users: RoomUser[];
           pomodoroState: any;
           todoState: TodoState | null;
+          backgroundId?: string
         }) => {
           console.log("[RoomPage] Received room-state from socket:", state);
+          setRoomUsers(state.users);
           setTodoState(state.todoState);
+          if (state.backgroundId) {
+            const bg = backgrounds.find((b) => b.id === state.backgroundId);
+            if (bg) setSelectedBg(bg);
+          }
         },
       );
 
@@ -395,25 +360,22 @@ export default function Room() {
       }
 
       socket.on(
-        "room-state",
-        (state: { users: RoomUser[]; backgroundId?: string }) => {
-          setRoomUsers(state.users);
-          if (state.backgroundId) {
-            const bg = backgrounds.find((b) => b.id === state.backgroundId);
-            if (bg) setSelectedBg(bg);
-          }
-        },
-      );
-
-      socket.on(
         "user-joined",
-        ({ userId, name }: { userId: string; name: string }) => {
+        ({ userId, name, characterId }: { userId: string; name: string; characterId: string }) => {
           setRoomUsers((prev) => {
             if (prev.find((u) => u.userId === userId)) return prev;
-            return [...prev, { userId, name }];
+            return [...prev, { userId, name, characterId }];
           });
         },
       );
+
+      socket.on("character-updated", ({ userId, characterId }: { userId: string; characterId: string }) => {
+        setRoomUsers((prevUsers) =>
+          prevUsers.map((user) =>
+            user.userId === userId ? { ...user, characterId } : user
+          )
+        );
+      });
 
       socket.on("user-left", ({ userId }: { userId: string }) => {
         setRoomUsers((prev) => prev.filter((u) => u.userId !== userId));
@@ -437,6 +399,7 @@ export default function Room() {
       socket.off("user-joined");
       socket.off("user-left");
       socket.off("background-updated");
+      socket.off("character-updated");
       socket.off("room-updated");
       socket.off("error");
     };

@@ -160,11 +160,11 @@ router.get(
           .json({ error: "Supabase client not initialized" });
       }
 
-      const { data, error } = await supabaseClient
-        .from("todos")
-        .select("*")
-        .eq("room_id", roomId)
-        .single();
+    const { data, error } = await supabaseClient
+      .from("todos")
+      .select("*")
+      .eq("room_id", roomId)
+      .maybeSingle();
 
       if (error) {
         console.error("Supabase error:", error);
@@ -290,21 +290,22 @@ router.get(
           .json({ error: "Supabase client not initialized" });
       }
 
-      const { data, error } = await supabaseClient
-        .from("profiles")
-        .select("id, name")
-        .eq("room", roomId);
+    const { data, error } = await supabaseClient
+      .from("profiles")
+      .select("id, name, character_id")
+      .eq("room", roomId);
 
       if (error) {
         console.error("Supabase error:", error);
         return res.status(500).json({ error: error.message });
       }
 
-      // Map to RoomUser type
-      const users = data.map((u: any) => ({
-        userId: u.id,
-        name: u.name,
-      }));
+    // Map to RoomUser type
+    const users = data.map((u: any) => ({
+      userId: u.id,
+      name: u.name,
+      characterId: u.character_id,
+    }));
 
       res.json(users);
     } catch (err) {
