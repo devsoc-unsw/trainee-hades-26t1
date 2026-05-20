@@ -30,8 +30,8 @@ export default function CharacterAnimation({ users }: Props) {
         className="absolute inset-0"
         style={{ transform: `scale(${scale})`, transformOrigin: "bottom left" }}
       >
-        {characters.map(c => (
-          <Character key={c.id} {...c} />
+        {characters.map((c, key) => (
+          <Character key={key} {...c} />
         ))}
       </div>
     </div>

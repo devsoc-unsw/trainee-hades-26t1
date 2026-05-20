@@ -1,37 +1,97 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Trash2, Check, Plus, ChevronUp, ListChecks } from "lucide-react";
+import { getSocket } from "@/lib/socket";
+import type { TodoState, TodoItem } from "@/lib/types";
 
-export default function TodoList() {
-  const [tasks, setTasks] = useState<{ text: string; completed: boolean }[]>(
-    [],
-  );
+interface TodoListProps {
+  roomId: string;
+  todoState: TodoState | null;
+}
+
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+export default function TodoList({ roomId, todoState }: TodoListProps) {
+  const [localTodos, setLocalTodos] = useState<TodoItem[]>([]);
   const [input, setInput] = useState("");
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  // Sync local state with todoState from props
+  useEffect(() => {
+    if (todoState?.items) {
+      setLocalTodos(todoState.items);
+    }
+  }, [todoState?.items]);
+
+  // Listen for todo updates from socket
+  useEffect(() => {
+    const socket = getSocket();
+    console.log("[TodoList] Socket connected:", socket.connected, "Socket ID:", socket.id);
+
+    const handleTodoUpdated = (data: { todoState: TodoState }) => {
+      console.log("[TodoList] Received todo-updated event:", data);
+      setLocalTodos(data.todoState.items);
+    };
+
+    const handleError = (error: any) => {
+      console.error("[TodoList] Socket error:", error);
+    };
+
+    socket.on("todo-updated", handleTodoUpdated);
+    socket.on("error", handleError);
+
+    return () => {
+      socket.off("todo-updated", handleTodoUpdated);
+      socket.off("error", handleError);
+    };
+  }, []);
+
   const addTask = () => {
     if (!input.trim()) return;
-    setTasks([...tasks, { text: input.trim(), completed: false }]);
+
+    const socket = getSocket();
+    const newTodo: TodoItem = {
+      id: generateId(),
+      text: input.trim(),
+      completed: false,
+    };
+
+    // Get current todo id 
+    console.log("[TodoList] Emitting add-todo:", { roomId, item: newTodo });
+    socket.emit("add-todo", { roomId, item: newTodo });
     setInput("");
   };
 
-  const toggleTask = (i: number) => {
-    setTasks(
-      tasks.map((task, idx) =>
-        idx === i ? { ...task, completed: !task.completed } : task,
-      ),
-    );
+  const toggleTask = (todoId: string) => {
+    const socket = getSocket();
+    const todo = localTodos.find((t) => t.id === todoId);
+
+    if (todo) {
+      console.log("[TodoList] Emitting update-todo:", {
+        roomId,
+        todoId,
+        changes: { completed: !todo.completed },
+      });
+      socket.emit("update-todo", {
+        roomId,
+        todoId,
+        changes: { completed: !todo.completed },
+      });
+    }
   };
 
-  const deleteTask = (i: number) => {
-    setTasks(tasks.filter((_, idx) => idx !== i));
+  const deleteTask = (todoId: string) => {
+    const socket = getSocket();
+    console.log("[TodoList] Emitting remove-todo:", { roomId, todoId });
+    socket.emit("remove-todo", { roomId, todoId });
   };
 
   return (
     <div
-      className={`w-full bg-(--pastel-yellow) rounded-[30px] border-4 border-(--dark-blue) p-6 flex flex-col transition-[gap] duration-300 ease-in-out ${
-        isCollapsed ? "gap-0" : "gap-3"
-      }`}
+      className={`w-full bg-(--pastel-yellow) rounded-[30px] border-4 border-(--dark-blue) p-6 flex flex-col transition-[gap] duration-300 ease-in-out ${isCollapsed ? "gap-0" : "gap-3"
+        }`}
     >
       <div className="relative flex items-center justify-center">
         <h2 className="text-(--dark-blue) font-(family-name:--font-pixelify) font-bold text-lg tracking-widest text-center flex items-center gap-2">
@@ -44,17 +104,15 @@ export default function TodoList() {
         >
           <ChevronUp
             size={20}
-            className={`transition-transform duration-300 ease-in-out ${
-              isCollapsed ? "rotate-180" : ""
-            }`}
+            className={`transition-transform duration-300 ease-in-out ${isCollapsed ? "rotate-180" : ""
+              }`}
           />
         </button>
       </div>
 
       <div
-        className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${
-          isCollapsed ? "max-h-0" : "max-h-125"
-        }`}
+        className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${isCollapsed ? "max-h-0" : "max-h-125"
+          }`}
       >
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-4 mx-1">
@@ -75,12 +133,11 @@ export default function TodoList() {
           </div>
 
           <div className="flex flex-col gap-4 overflow-y-auto max-h-64">
-            {tasks.map((task, i) => (
+            {localTodos.map((task) => (
               <div
-                key={i}
-                className={`flex items-center justify-between bg-(--dark-blue) text-white rounded-[15px] px-4 py-3 ${
-                  task.completed ? "opacity-50" : ""
-                }`}
+                key={task.id}
+                className={`flex items-center justify-between bg-(--dark-blue) text-white rounded-[15px] px-4 py-3 ${task.completed ? "opacity-50" : ""
+                  }`}
               >
                 <span
                   className={`font-mono ${task.completed ? "line-through" : ""}`}
@@ -89,13 +146,13 @@ export default function TodoList() {
                 </span>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => toggleTask(i)}
+                    onClick={() => toggleTask(task.id)}
                     className="cursor-pointer text-white hover:opacity-50 transition-opacity duration-150"
                   >
                     <Check size={16} />
                   </button>
                   <button
-                    onClick={() => deleteTask(i)}
+                    onClick={() => deleteTask(task.id)}
                     className="cursor-pointer text-white hover:opacity-50 transition-opacity duration-150"
                   >
                     <Trash2 size={16} />
@@ -105,7 +162,5 @@ export default function TodoList() {
             ))}
           </div>
         </div>
-      </div>
-    </div>
-  );
+        );
 }
