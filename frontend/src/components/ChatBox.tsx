@@ -104,17 +104,23 @@ export default function ChatBox({ roomId, roomUsers }: ChatBoxProps) {
           >
             {messages.map((msg, i) => {
               const isOwn = msg.userId === currentUserId;
+              if (isOwn) {
+                return (
+                  <div key={i} className="flex justify-end">
+                    <span className="font-mono text-sm text-(--dark-blue) bg-gray-100 border-2 border-(--dark-blue) rounded-2xl px-3 py-1 max-w-[80%] wrap-break-word">
+                      {msg.message}
+                    </span>
+                  </div>
+                );
+              }
               return (
-                <div
-                  key={i}
-                  className={`font-mono text-sm text-(--dark-blue) ${
-                    isOwn ? "text-right" : "text-left"
-                  }`}
-                >
-                  <span className="font-bold">
-                    {getSenderName(msg.userId)}:
-                  </span>{" "}
-                  {msg.message}
+                <div key={i} className="flex justify-start">
+                  <span className="font-mono text-sm text-white bg-(--dark-blue) border-2 border-(--dark-blue) rounded-2xl px-3 py-1 max-w-[80%] wrap-break-word">
+                    <span className="font-bold">
+                      {getSenderName(msg.userId)}:{" "}
+                    </span>
+                    {msg.message}
+                  </span>
                 </div>
               );
             })}
