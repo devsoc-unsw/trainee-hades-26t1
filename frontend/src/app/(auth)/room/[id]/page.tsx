@@ -40,15 +40,32 @@ export default function Room() {
   const roomId = String(useParams().id);
   const router = useRouter();
 
-  const handleCharacterChange = (c: Character) => {
+  const handleCharacterChange = async (c: Character) => {
     setSelectedCharacter(c);
     setShowCharacterPicker(false);
 
     const socket = getSocket();
-    socket.emit("update-character", {
-      roomId,
-      characterId: c.id,
-    });
+    socket.emit("update-character", { roomId, characterId: c.id });
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ character_id: c.id }),
+      });
+    } catch {
+      setFeedbackDescription("Failed to save character. Please try again.");
+      setFeedbackVariant("error");
+      setFeedbackTitle("Error");
+      setFeedbackOpen(true);
+    }
   };
 
   // Helper function to show feedback modal
@@ -77,10 +94,38 @@ export default function Room() {
 
       const roomData = await resp.json();
       setData(roomData);
+
+      // Load saved background
+      if (roomData.backgroundId) {
+        const bg = backgrounds.find(b => b.id === roomData.backgroundId);
+        if (bg) setSelectedBg(bg);
+      }
     } catch (error) {
       showFeedback("Error", error instanceof Error ? error.message : "An unknown error occurred");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getSavedCharacter = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) return;
+
+      const profile = await resp.json();
+      if (profile.character_id) {
+        const c = characters.find(ch => ch.id === profile.character_id);
+        if (c) setSelectedCharacter(c);
+      }
+    } catch {
+      // silently fail, default character is fine
     }
   };
 
@@ -185,11 +230,32 @@ export default function Room() {
     }
   };
 
-  const handleBgChange = (bg: typeof backgrounds[0]) => {
+  const handleBgChange = async (bg: typeof backgrounds[0]) => {
     setSelectedBg(bg);
     setShowPicker(false);
+
     const socket = getSocket();
     socket.emit("update-background", { roomId, backgroundId: bg.id });
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ backgroundId: bg.id }),
+      });
+    } catch {
+      setFeedbackDescription("Failed to save background. Please try again.");
+      setFeedbackVariant("error");
+      setFeedbackTitle("Error");
+      setFeedbackOpen(true);
+    }
   };
 
   const getTodoState = async (roomId: string) => {
@@ -225,6 +291,7 @@ export default function Room() {
 
   useEffect(() => {
     getRoomData(roomId);
+    getSavedCharacter();
     getTodoState(roomId);
     getRoomUsers(roomId);
   }, [roomId]);
@@ -272,10 +339,7 @@ export default function Room() {
         socket.emit("join-room", { roomId, token });
       }
 
-      socket.on("room-state", (state: {
-        users: RoomUser[];
-        backgroundId?: string;
-      }) => {
+      socket.on("room-state", (state: { users: RoomUser[]; backgroundId?: string }) => {
         setRoomUsers(state.users);
         if (state.backgroundId) {
           const bg = backgrounds.find(b => b.id === state.backgroundId);
@@ -323,7 +387,6 @@ export default function Room() {
         </main>
       ) : (
         <main className="flex flex-col xl:flex-row min-h-[calc(100vh-64px)] mt-16">
-          {/* Room Content */}
           <div className="w-full xl:w-2/3 flex flex-col items-start p-4 sm:p-6 xl:p-8 gap-3 sm:gap-4">
 
             {/* Title Row */}
@@ -337,7 +400,15 @@ export default function Room() {
                       setData(prev => prev ? { ...prev, roomTitle: e.target.value } : prev)
                     }
                     maxLength={30}
-                    onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        setIsEditing(false);
+                        // Update room data when user finishes editing
+                        if (data) {
+                          updateRoomData(data);
+                        }
+                      }
+                    }}
                     className="bg-transparent border-b border-white/50 outline-none w-full"
                   />
                 ) : (
@@ -373,7 +444,6 @@ export default function Room() {
               </Button>
             </div>
 
-            {/* Author and Room Description */}
             <div className="flex flex-col sm:flex-row w-full gap-2 sm:gap-6 text-(--dark-blue) sm:justify-between sm:items-center">
               <div className="font-mono text-sm">{data?.description || ""}</div>
               <div className="bg-(--pastel-yellow) border-2 border-(--dark-blue) rounded-xl p-2 text-sm self-start sm:self-auto whitespace-nowrap">
@@ -381,7 +451,6 @@ export default function Room() {
               </div>
             </div>
 
-            {/* Study Nook — fixed height on mobile, flex-1 on xl */}
             <div className="relative w-full h-[220px] sm:h-[300px] xl:h-auto xl:flex-1 bg-(--light-blue) border-4 border-(--dark-blue) rounded-xl overflow-hidden">
               <Image
                 src={selectedBg.src}
@@ -393,9 +462,7 @@ export default function Room() {
               <CharacterAnimation users={roomUsers} />
             </div>
 
-            {/* Picker Row */}
             <div className="flex flex-wrap gap-3 items-start justify-start w-full">
-              {/* Background picker */}
               <div className="flex items-start gap-2">
                 <button
                   onClick={() => setShowPicker(!showPicker)}
@@ -424,7 +491,6 @@ export default function Room() {
                 )}
               </div>
 
-              {/* Character picker */}
               <button
                 onClick={() => setShowCharacterPicker(v => !v)}
                 className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
