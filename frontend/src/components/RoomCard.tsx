@@ -26,9 +26,6 @@ export default function RoomCard({
       onClick={onClick}
       className="relative"
       onMouseMove={(e) => {
-        {
-          /*Keep location bar in bound*/
-        }
         const mouse = e.currentTarget.getBoundingClientRect();
         setToolTip({
           x: e.clientX - mouse.left,
@@ -37,7 +34,6 @@ export default function RoomCard({
       }}
       onMouseLeave={() => setToolTip(null)}
     >
-
       <div className="relative rounded-2xl overflow-hidden transition-transform duration-200 hover:scale-[1.02] border-2 border-(--dark-blue) h-48">
         {/* Background, image || white */}
         {imageUrl ? (
@@ -46,18 +42,20 @@ export default function RoomCard({
           <div className="w-full h-full bg-white" />
         )}
 
-        {/* Class name */}
-        <div className="absolute bottom-0 left-0 right-0 p-4">
+        {/* Room name */}
+        <div className="absolute inset-0 flex items-center justify-center p-4">
           <span
-            className={`text-xs font-(family-name:--font-pixelify) ${imageUrl ? "text-white" : "text-(--dark-blue)"
-              }`}
+            className="text-xl font-(family-name:--font-pixelify) text-white text-center"
+            style={{
+              textShadow: "0 0 4px var(--dark-blue), 0 0 4px var(--dark-blue), 0 0 8px var(--dark-blue), 2px 2px 0px var(--dark-blue), -2px -2px 0px var(--dark-blue), 2px -2px 0px var(--dark-blue), -2px 2px 0px var(--dark-blue)",
+            }}
           >
             {name}
           </span>
         </div>
       </div>
 
-      {/* Mouse Tooltip*/}
+      {/* Mouse Tooltip */}
       {tooltip && (
         <div
           className="pointer-events-none absolute z-50 flex items-center gap-2 px-3 py-2 rounded-lg bg-(--pastel-yellow) border-2 border-(--dark-blue) whitespace-nowrap"
