@@ -8,6 +8,7 @@ import type { RoomUser } from "@/lib/types";
 
 type ChatMessage = {
   userId: string;
+  name?: string;
   message: string;
   timestamp: string;
 };
@@ -94,8 +95,12 @@ export default function ChatBox({ roomId, roomUsers }: ChatBoxProps) {
     setInput("");
   };
 
-  const getSenderName = (userId: string) => {
-    return roomUsers.find((u) => u.userId === userId)?.name ?? "Unknown";
+  const getSenderName = (msg: ChatMessage) => {
+    return (
+      msg.name ??
+      roomUsers.find((u) => u.userId === msg.userId)?.name ??
+      "Unknown"
+    );
   };
 
   return (
@@ -147,7 +152,7 @@ export default function ChatBox({ roomId, roomUsers }: ChatBoxProps) {
                 <div key={i} className="flex justify-start">
                   <span className="font-mono text-sm text-white bg-(--dark-blue) border-2 border-(--dark-blue) rounded-2xl px-3 py-1 max-w-[80%] wrap-break-word">
                     <span className="font-bold">
-                      {getSenderName(msg.userId)}:{" "}
+                      {getSenderName(msg)}:{" "}
                     </span>
                     {msg.message}
                   </span>

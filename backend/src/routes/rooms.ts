@@ -94,7 +94,29 @@ router.get("/:roomId/messages", supabaseAuth, async (req: Request, res: Response
       return res.status(500).json({ error: error.message });
     }
 
-    res.json(data ?? []);
+    const messages = data ?? [];
+    const uniqueUserIds = [...new Set(messages.map((m) => m.userId))];
+
+    let nameById = new Map<string, string>();
+    if (uniqueUserIds.length > 0) {
+      const { data: profiles, error: profilesError } = await supabaseClient
+        .from("profiles")
+        .select("id, name")
+        .in("id", uniqueUserIds);
+
+      if (profilesError) {
+        console.error("Supabase profiles error:", profilesError);
+      } else if (profiles) {
+        nameById = new Map(profiles.map((p) => [p.id as string, p.name as string]));
+      }
+    }
+
+    const enriched = messages.map((m) => ({
+      ...m,
+      name: nameById.get(m.userId) ?? "Unknown",
+    }));
+
+    res.json(enriched);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });

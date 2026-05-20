@@ -601,8 +601,12 @@ export const roomHandler = (io: Server) => {
           session.token,
         );
 
+        const room = roomStates.get(roomId);
+        const name = room?.users.get(userId)?.name ?? "Unknown";
+
         io.to(roomId).emit("new-message", {
           userId,
+          name,
           message,
           timestamp: saved?.timestamp ?? new Date().toISOString(),
         });
