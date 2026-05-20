@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { FeedbackModal } from "@/components/FeedbackModal";
 import { getSocket, initSocket } from "@/lib/socket";
 import { Feedback } from "@/lib/types";
+import { backgrounds } from "@/lib/backgrounds";
 
 
 interface Room {
@@ -30,7 +31,19 @@ interface Room {
   location: string;
   createdAt: string;
   createdBy: string;
+  backgroundId?: string;
 }
+
+const getFallbackBackground = (id: number) =>
+  (backgrounds[id % backgrounds.length] ?? backgrounds[0]).src;
+
+const getRoomBackground = (room: Room) => {
+  if (room.backgroundId) {
+    const bg = backgrounds.find(b => b.id === room.backgroundId);
+    if (bg) return bg.src;
+  }
+  return getFallbackBackground(room.id);
+};
 
 export default function Rooms() {
   const [filter, setFilter] = useState("");
@@ -243,7 +256,6 @@ export default function Rooms() {
 
       const socket = initSocket(token, String(roomId));
 
-      // Clean up any stale listeners from previous attempts
       socket.off("room-state");
       socket.off("error");
 
@@ -264,7 +276,6 @@ export default function Rooms() {
         console.log("Successfully joined room:", data);
 
         try {
-          // Push room id to profile
           const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
             method: "PUT",
             headers: {
@@ -350,6 +361,7 @@ export default function Rooms() {
                   key={room.id}
                   name={room.roomTitle}
                   location={room.location}
+                  imageUrl={getRoomBackground(room)}
                   onClick={() => handleJoinRoom(room.id)}
                 />
               ))}
@@ -358,7 +370,6 @@ export default function Rooms() {
         )}
       </main>
 
-      {/* Feedback */}
       <FeedbackModal
         open={feedback?.open ?? false}
         onOpenChange={(open) => {
@@ -372,7 +383,6 @@ export default function Rooms() {
         variant={feedback?.variant ?? "success"}
       />
 
-      {/* Create room modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className={cn(poppins.className, "bg-(--light-blue) border-(--dark-blue)/15 rounded-lg p-6")}>
           <DialogHeader>
