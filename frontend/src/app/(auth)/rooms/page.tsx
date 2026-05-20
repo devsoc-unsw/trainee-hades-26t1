@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { supabase } from '@/supabaseClient';
+import { supabase } from "@/supabaseClient";
 import { pixelify, poppins } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 import { FeedbackModal } from "@/components/FeedbackModal";
@@ -40,7 +40,7 @@ const getFallbackBackground = (id: number) =>
 
 const getRoomBackground = (room: Room) => {
   if (room.backgroundId) {
-    const bg = backgrounds.find(b => b.id === room.backgroundId);
+    const bg = backgrounds.find((b) => b.id === room.backgroundId);
     if (bg) return bg.src;
   }
   return getFallbackBackground(room.id);
@@ -63,9 +63,8 @@ export default function Rooms() {
 
   useEffect(() => {
     setFilteredRooms(
-      rooms.filter(
-        (room) =>
-          room.roomTitle.toLowerCase().includes(filter.toLowerCase()),
+      rooms.filter((room) =>
+        room.roomTitle.toLowerCase().includes(filter.toLowerCase()),
       ),
     );
   }, [filter]);
@@ -76,7 +75,9 @@ export default function Rooms() {
 
   const handleCreateRoom = async (title: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const token = session?.access_token;
 
       console.log(`UserId: ${session?.user.id}`);
@@ -95,18 +96,20 @@ export default function Rooms() {
       const newRoom = {
         roomTitle: title,
         description: newRoomDescription,
-        location: newRoomLocation
-      }
+        location: newRoomLocation,
+        password: newRoomIsPrivate ? newRoomPassword : null,
+      };
 
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/room`,
+      const resp = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/room`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(newRoom)
-        }
+          body: JSON.stringify(newRoom),
+        },
       );
 
       if (!resp.ok) {
@@ -115,7 +118,9 @@ export default function Rooms() {
         setFeedback({
           open: true,
           title: "Failed to create room",
-          description: errorData.error || "An unknown error occurred while creating the room.",
+          description:
+            errorData.error ||
+            "An unknown error occurred while creating the room.",
           actionLabel: "Close",
           variant: "error",
         });
@@ -150,11 +155,13 @@ export default function Rooms() {
         variant: "error",
       });
     }
-  }
+  };
 
   const handleGetRooms = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const token = session?.access_token;
 
       if (!token) {
@@ -169,13 +176,14 @@ export default function Rooms() {
         return;
       }
 
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms`,
+      const resp = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms`,
         {
           method: "GET",
           headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        }
+            Authorization: `Bearer ${token}`,
+          },
+        },
       );
 
       if (!resp.ok) {
@@ -184,7 +192,9 @@ export default function Rooms() {
         setFeedback({
           open: true,
           title: "Failed to fetch rooms",
-          description: errorData.error || "An unknown error occurred while fetching rooms.",
+          description:
+            errorData.error ||
+            "An unknown error occurred while fetching rooms.",
           actionLabel: "Close",
           variant: "error",
         });
@@ -208,11 +218,13 @@ export default function Rooms() {
       });
       setLoading(false);
     }
-  }
+  };
 
   const handleJoinRoom = async (roomId: number) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const token = session?.access_token;
 
       if (!token) {
@@ -226,17 +238,22 @@ export default function Rooms() {
         return;
       }
 
-      const profileResp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
-        method: "GET",
-        headers: { "Authorization": `Bearer ${token}` }
-      });
+      const profileResp = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       if (!profileResp.ok) {
         const errorData = await profileResp.json();
         setFeedback({
           open: true,
           title: "Failed to fetch profile",
-          description: errorData.error || "An unknown error occurred while fetching your profile.",
+          description:
+            errorData.error ||
+            "An unknown error occurred while fetching your profile.",
           actionLabel: "Close",
           variant: "error",
         });
@@ -254,7 +271,8 @@ export default function Rooms() {
         setFeedback({
           open: true,
           title: "Already in a room",
-          description: "You must leave your current room before joining a new one.",
+          description:
+            "You must leave your current room before joining a new one.",
           actionLabel: "Close",
           variant: "error",
         });
@@ -283,19 +301,27 @@ export default function Rooms() {
         console.log("Successfully joined room:", data);
 
         try {
-          const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`
+          const resp = await fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`,
+            {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ room: roomId }),
             },
-            body: JSON.stringify({ room: roomId })
-          });
+          );
 
           if (!resp.ok) {
             const errorData = await resp.json();
-            console.error("Error updating profile with room id:", errorData.error);
-            throw new Error(errorData.data || "Failed to update profile with room id");
+            console.error(
+              "Error updating profile with room id:",
+              errorData.error,
+            );
+            throw new Error(
+              errorData.data || "Failed to update profile with room id",
+            );
           }
           router.push(`/room/${roomId}`);
         } catch (err) {
@@ -303,7 +329,8 @@ export default function Rooms() {
           setFeedback({
             open: true,
             title: "Failed to join room",
-            description: "An error occurred while updating your profile. Please try again.",
+            description:
+              "An error occurred while updating your profile. Please try again.",
             actionLabel: "Close",
             variant: "error",
           });
@@ -316,14 +343,14 @@ export default function Rooms() {
         setFeedback({
           open: true,
           title: "Failed to join room",
-          description: error.message || "An error occurred while joining the room.",
+          description:
+            error.message || "An error occurred while joining the room.",
           actionLabel: "Close",
           variant: "error",
         });
       });
 
       socket.emit("join-room", { roomId: String(roomId), token });
-
     } catch (error) {
       console.error("Error joining room:", error);
       setFeedback({
@@ -391,9 +418,18 @@ export default function Rooms() {
       />
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className={cn(poppins.className, "w-full min-w-sm sm:min-w-lg bg-(--light-blue) border-(--dark-blue)/15 rounded-lg p-6")}>
+        <DialogContent
+          className={cn(
+            poppins.className,
+            "w-full min-w-sm sm:min-w-lg bg-(--light-blue) border-(--dark-blue)/15 rounded-lg p-6",
+          )}
+        >
           <DialogHeader>
-            <DialogTitle className={`text-3xl font-bold text-(--dark-blue) ${pixelify.className}`}>Create New Room</DialogTitle>
+            <DialogTitle
+              className={`text-3xl font-bold text-(--dark-blue) ${pixelify.className}`}
+            >
+              Create New Room
+            </DialogTitle>
             <DialogDescription className="text-sm text-gray-600">
               Enter a title, description, and location for your new room
             </DialogDescription>
@@ -466,37 +502,47 @@ export default function Rooms() {
                       </span>
                     </div>
                     <span className="text-gray-600">
-                      {newRoomIsPrivate ? "You need to share your password for others to join" : "Anyone can join"}
+                      {newRoomIsPrivate
+                        ? "You need to share your password for others to join"
+                        : "Anyone can join"}
                     </span>
                   </div>
                 </div>
-                {
-                  newRoomIsPrivate && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showNewRoomPassword ? "text" : "password"}
-                          value={newRoomPassword ?? ""}
-                          onChange={(e) => setNewRoomPassword(e.target.value)}
-                          placeholder="Enter room password"
-                          className="bg-(--dark-blue)/50 w-full px-4 py-2 pr-12 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewRoomPassword((current) => !current)}
-                          aria-label={showNewRoomPassword ? "Hide password" : "Show password"}
-                          className="absolute inset-y-0 right-0 flex items-center justify-center px-3 text-gray-600 hover:text-(--dark-blue)"
-                        >
-                          {showNewRoomPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
-                      </div>
+                {newRoomIsPrivate && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showNewRoomPassword ? "text" : "password"}
+                        value={newRoomPassword ?? ""}
+                        onChange={(e) => setNewRoomPassword(e.target.value)}
+                        placeholder="Enter room password"
+                        className="bg-(--dark-blue)/50 w-full px-4 py-2 pr-12 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowNewRoomPassword((current) => !current)
+                        }
+                        aria-label={
+                          showNewRoomPassword
+                            ? "Hide password"
+                            : "Show password"
+                        }
+                        className="absolute inset-y-0 right-0 flex items-center justify-center px-3 text-gray-600 hover:text-(--dark-blue)"
+                      >
+                        {showNewRoomPassword ? (
+                          <EyeOff size={18} />
+                        ) : (
+                          <Eye size={18} />
+                        )}
+                      </button>
                     </div>
-                  )
-                }
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter className="flex justify-end gap-4 bg-transparent border-none">
@@ -515,7 +561,10 @@ export default function Rooms() {
               >
                 Cancel
               </Button>
-              <Button type="submit" className="bg-(--dark-blue) hover:bg-blue-600 text-white">
+              <Button
+                type="submit"
+                className="bg-(--dark-blue) hover:bg-blue-600 text-white"
+              >
                 Create Room
               </Button>
             </DialogFooter>
