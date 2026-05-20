@@ -19,11 +19,11 @@ import { supabase } from '@/supabaseClient';
 import { pixelify, poppins } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 import { FeedbackModal } from "@/components/FeedbackModal";
-import { getSocket, initSocket } from "@/lib/socket";
+import { initSocket } from "@/lib/socket";
 import { Feedback } from "@/lib/types";
 import { backgrounds } from "@/lib/backgrounds";
 import { Switch } from "@/components/ui/switch";
-
+import { Eye, EyeOff } from "lucide-react";
 
 interface Room {
   id: number;
@@ -55,6 +55,8 @@ export default function Rooms() {
   const [newRoomDescription, setNewRoomDescription] = useState("");
   const [newRoomLocation, setNewRoomLocation] = useState("");
   const [newRoomIsPrivate, setNewRoomIsPrivate] = useState(false);
+  const [newRoomPassword, setNewRoomPassword] = useState<string | null>(null);
+  const [showNewRoomPassword, setShowNewRoomPassword] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -125,6 +127,9 @@ export default function Rooms() {
       setNewRoomTitle("");
       setNewRoomDescription("");
       setNewRoomLocation("");
+      setNewRoomIsPrivate(false);
+      setNewRoomPassword(null);
+      setShowNewRoomPassword(false);
 
       setFeedback({
         open: true,
@@ -386,7 +391,7 @@ export default function Rooms() {
       />
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className={cn(poppins.className, "bg-(--light-blue) border-(--dark-blue)/15 rounded-lg p-6")}>
+        <DialogContent className={cn(poppins.className, "w-full min-w-sm sm:min-w-lg bg-(--light-blue) border-(--dark-blue)/15 rounded-lg p-6")}>
           <DialogHeader>
             <DialogTitle className={`text-3xl font-bold text-(--dark-blue) ${pixelify.className}`}>Create New Room</DialogTitle>
             <DialogDescription className="text-sm text-gray-600">
@@ -401,66 +406,97 @@ export default function Rooms() {
               }
             }}
           >
-            <div className="flex flex-col gap-3 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Room Title
-                </label>
-                <input
-                  type="text"
-                  value={newRoomTitle}
-                  onChange={(e) => setNewRoomTitle(e.target.value)}
-                  placeholder="Enter room title"
-                  className="bg-(--dark-blue)/50 w-full px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  required
-                  autoFocus
-                />
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6 mb-6">
+              <div className="flex min-w-0 flex-col gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Room Title
+                  </label>
+                  <input
+                    type="text"
+                    value={newRoomTitle}
+                    onChange={(e) => setNewRoomTitle(e.target.value)}
+                    placeholder="Enter room title"
+                    className="bg-(--dark-blue)/50 w-full px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Room Description
+                  </label>
+                  <textarea
+                    value={newRoomDescription}
+                    onChange={(e) => setNewRoomDescription(e.target.value)}
+                    placeholder="Enter room description"
+                    className="bg-(--dark-blue)/50 w-full max-h-32 px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Location
+                  </label>
+                  <input
+                    type="text"
+                    value={newRoomLocation}
+                    onChange={(e) => setNewRoomLocation(e.target.value)}
+                    placeholder="Enter room location"
+                    className="bg-(--dark-blue)/50 w-full px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    autoFocus
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Room Description
-                </label>
-                <textarea
-                  value={newRoomDescription}
-                  onChange={(e) => setNewRoomDescription(e.target.value)}
-                  placeholder="Enter room description"
-                  className="bg-(--dark-blue)/50 w-full max-h-32 px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Location
-                </label>
-                <input
-                  type="text"
-                  value={newRoomLocation}
-                  onChange={(e) => setNewRoomLocation(e.target.value)}
-                  placeholder="Enter room location"
-                  className="bg-(--dark-blue)/50 w-full px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Private
-                </label>
-                <div className="flex flex-col gap-3 bg-(--dark-blue)/50 w-full min-h-24 px-4 py-2 border border-(--dark-blue) rounded-lg">
-                  <div className="flex gap-3">
-                    <Switch
-                      checked={newRoomIsPrivate}
-                      onCheckedChange={setNewRoomIsPrivate}
-                      size="default"
-                      className="data-checked:bg-(--dark-blue)"
-                    />
-                    <span className="text-sm">
-                      {newRoomIsPrivate ? "Private room" : "Public room"}
+              <div className="flex min-w-0 flex-col gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Private
+                  </label>
+                  <div className="flex flex-col gap-3 bg-(--dark-blue)/50 w-full min-h-24 px-4 py-2 border border-(--dark-blue) rounded-lg">
+                    <div className="flex gap-3">
+                      <Switch
+                        checked={newRoomIsPrivate}
+                        onCheckedChange={setNewRoomIsPrivate}
+                        size="default"
+                        className="data-checked:bg-(--dark-blue)"
+                      />
+                      <span className="text-sm">
+                        {newRoomIsPrivate ? "Private room" : "Public room"}
+                      </span>
+                    </div>
+                    <span className="text-gray-600">
+                      {newRoomIsPrivate ? "You need to share your password for others to join" : "Anyone can join"}
                     </span>
                   </div>
-                  <span className="text-gray-600">
-                    {newRoomIsPrivate ? "You need to share your password for others to join" : "Anyone can join"}
-                  </span>
                 </div>
+                {
+                  newRoomIsPrivate && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showNewRoomPassword ? "text" : "password"}
+                          value={newRoomPassword ?? ""}
+                          onChange={(e) => setNewRoomPassword(e.target.value)}
+                          placeholder="Enter room password"
+                          className="bg-(--dark-blue)/50 w-full px-4 py-2 pr-12 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewRoomPassword((current) => !current)}
+                          aria-label={showNewRoomPassword ? "Hide password" : "Show password"}
+                          className="absolute inset-y-0 right-0 flex items-center justify-center px-3 text-gray-600 hover:text-(--dark-blue)"
+                        >
+                          {showNewRoomPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                }
               </div>
             </div>
             <DialogFooter className="flex justify-end gap-4 bg-transparent border-none">
@@ -472,6 +508,9 @@ export default function Rooms() {
                   setNewRoomTitle("");
                   setNewRoomDescription("");
                   setNewRoomLocation("");
+                  setNewRoomIsPrivate(false);
+                  setNewRoomPassword(null);
+                  setShowNewRoomPassword(false);
                 }}
               >
                 Cancel
