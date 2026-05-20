@@ -140,10 +140,6 @@ router.get("/:roomId/todos", supabaseAuth, async (req: Request, res: Response) =
       .single();
 
     if (error) {
-      // If not found, return null todoState (room may not have todos yet)
-      if (error.code === "PGRST116") {
-        return res.json(null);
-      }
       console.error("Supabase error:", error);
       return res.status(500).json({ error: error.message });
     }

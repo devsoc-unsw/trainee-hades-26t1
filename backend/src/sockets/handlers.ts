@@ -104,7 +104,7 @@ async function fetchRoomStateFromSupabase(
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
-        client.from("todos").select("*").eq("room_id", roomId).maybeSingle(),
+        client.from("todos").select("*").eq("room_id", roomId).single(),
         client.from("rooms").select("created_by").eq("id", roomId).single(),
         client
           .from("rooms")
@@ -369,75 +369,43 @@ export const roomHandler = (io: Server) => {
           return;
         }
 
-        const room = roomStates.get(roomId);
+        const room = roomStates.get(roomId) as RoomState;
         console.log("[Handler] room lookup:", room ? "found" : "NOT FOUND");
         if (!room) {
           socket.emit("error", { message: "Room not found" });
           return;
         }
 
+        // Must have an existing todos row in DB (trigger handles creation).
+        if (!room.todoState) {
+          console.log("[Handler] No todoState found; cannot add todo");
+          socket.emit("error", { message: "No todos to add" });
+          return;
+        }
+
         // Check for duplicates before proceeding
-        if (
-          room.todoState &&
-          room.todoState.items.some((i) => i.id === item.id)
-        ) {
+        if (room.todoState.items.some((i) => i.id === item.id)) {
           console.log("[Handler] Duplicate todo detected");
           socket.emit("error", { message: "Todo already exists" });
           return;
         }
 
-        // Initialize todoState if it doesn't exist
-        if (!room.todoState) {
-          console.log("[Handler] Initializing todoState for room:", roomId);
-          try {
-            const { data, error: insertError } = await createSupabaseClient(
-              session.token,
-            )
-              .from("todos")
-              .insert({ room_id: roomId, items: [item] })
-              .select()
-              .single();
+        // Apply change in-memory but keep a copy to revert if save fails
+        const originalItems = [...room.todoState.items];
+        room.todoState.items = originalItems.concat(item);
 
-            if (insertError || !data) {
-              console.error("add-todo insert failed:", insertError);
-              socket.emit("error", {
-                message: "Failed to create todo list",
-              });
-              return;
-            }
+        const saved = await saveTodosToSupabase(
+          room.todoState.id,
+          room.todoState.items,
+          session.token,
+        );
 
-            room.todoState = {
-              id: data.id,
-              items: data.items || [item],
-            };
-            console.log(
-              "[Handler] todoState initialized with ID:",
-              room.todoState.id,
-            );
-          } catch (err) {
-            console.error("add-todo insert exception:", err);
-            socket.emit("error", { message: "Internal server error" });
-            return;
-          }
-        } else {
-          // TodoState exists, add to it
-          console.log("[Handler] Adding item to existing todoState");
-          room.todoState.items.push(item);
-          const saved = await saveTodosToSupabase(
-            room.todoState.id,
-            room.todoState.items,
-            session.token,
-          );
-
-          if (!saved) {
-            // Revert the in-memory change if save failed
-            room.todoState.items.pop();
-            console.log("[Handler] Save failed, reverted change");
-            socket.emit("error", {
-              message: "Failed to save todo",
-            });
-            return;
-          }
+        if (!saved) {
+          // Revert the in-memory change if save failed
+          room.todoState.items = originalItems;
+          console.log("[Handler] Save failed, reverted change");
+          socket.emit("error", { message: "Failed to save todo" });
+          return;
         }
 
         console.log("[Handler] Broadcasting todo-updated to room:", roomId);
@@ -468,21 +436,17 @@ export const roomHandler = (io: Server) => {
           return;
         }
 
-        const initialLength = room.todoState.items.length;
-        room.todoState.items = room.todoState.items.filter(
-          (i) => i.id !== todoId,
-        );
+        const originalItems = [...room.todoState.items];
+        const newItems = originalItems.filter((i) => i.id !== todoId);
 
         // If item wasn't found, it was already removed (race condition) - just sync state
-        if (room.todoState.items.length === initialLength) {
-          console.log(
-            "[Handler] Todo already removed (race condition):",
-            todoId,
-          );
-          // Broadcast current state so all users stay synced
+        if (newItems.length === originalItems.length) {
+          console.log("[Handler] Todo already removed (race condition):", todoId);
           io.to(roomId).emit("todo-updated", { todoState: room.todoState });
           return;
         }
+
+        room.todoState.items = newItems;
 
         console.log("[Handler] Saving updated todos to DB");
         const saved = await saveTodosToSupabase(
@@ -493,9 +457,7 @@ export const roomHandler = (io: Server) => {
 
         if (!saved) {
           // Revert the in-memory change if save failed
-          room.todoState.items = room.todoState.items.concat(
-            { id: todoId, text: "", completed: false }, // placeholder
-          );
+          room.todoState.items = originalItems;
           console.log("[Handler] Save failed, reverted change");
           socket.emit("error", { message: "Failed to remove todo" });
           return;
