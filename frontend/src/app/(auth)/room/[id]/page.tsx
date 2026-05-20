@@ -481,7 +481,7 @@ export default function Room() {
             </div>
 
             {/* Productivity Tools (Pomodoro and Todo-List) */}
-            <div className="w-full xl:w-1/3 flex flex-col gap-8 p-8">
+            <div className="w-full xl:w-1/3 flex flex-col gap-8 p-8 xl:min-h-0 xl:overflow-y-auto">
               <PomodoroTimer roomId={roomId} />
               <TodoList roomId={roomId} todoState={todoState} />
               <ChatBox roomId={roomId} roomUsers={roomUsers} />
