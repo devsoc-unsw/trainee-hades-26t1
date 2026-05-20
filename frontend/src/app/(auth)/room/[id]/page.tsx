@@ -282,7 +282,8 @@ export default function Room() {
         },
       );
       if (!resp.ok) {
-        throw new Error("Failed to fetch todo state");
+        const errorResp = await resp.json();
+        throw new Error(errorResp || "Failed to fetch todo state");
       }
       const data = await resp.json();
       console.log("[RoomPage] Fetched todoState from REST API:", data);

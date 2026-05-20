@@ -176,23 +176,25 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
   }, [state.hostId]);
 
   const syncLocalStateFromServer = (serverState: ServerPomodoroState, dispatcher: typeof dispatch) => {
-    // Determine phase
     const phase = serverState.mode === "pomodoro" ? "pomo" : serverState.mode === "short_break" ? "short" : "long";
     dispatcher({ type: "SET_PHASE", payload: { isBreak: phase === "short", isLongBreak: phase === "long" } });
-
-    // Set running status
     dispatcher({ type: "SET_RUNNING", payload: serverState.status === "running" });
 
-    // Calculate and set time display
+    if (serverState.duration) {
+      const durationInMins = Math.round(serverState.duration / (60 * 1000));
+      dispatcher({
+        type: "UPDATE_DRAFT",
+        payload: { [phase]: durationInMins }
+      });
+    }
+
     if (serverState.status === "running" && serverState.endTime) {
-      // Timer is running, use endTime to calculate remaining
       const now = Date.now();
       const remaining = Math.max(0, serverState.endTime - now);
       const mins = Math.floor(remaining / (60 * 1000));
       const secs = Math.floor((remaining % (60 * 1000)) / 1000);
       dispatcher({ type: "SET_TIMER", payload: { minutes: mins, seconds: secs } });
     } else {
-      // Timer is paused or idle
       const timeMs = serverState.remainingTime || serverState.duration || 25 * 60 * 1000;
       const mins = Math.floor(timeMs / (60 * 1000));
       const secs = Math.floor((timeMs % (60 * 1000)) / 1000);
@@ -230,21 +232,22 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
   };
 
   const handleSkip = () => {
-    // Only host can skip/advance timer
     if (!state.isCurrentUserHost) return;
 
+    const newCount = currentPhase === "pomo" ? state.pomoCount + 1 : state.pomoCount;
+
     if (currentPhase === "pomo") dispatch({ type: "INCREMENT_POMO_COUNT" });
-    const next = getNextPhase(currentPhase);
-    if (!next) return;
+
+    let next: Phase = "pomo";
+    if (currentPhase === "pomo") {
+      next = newCount % 4 === 0 ? "long" : "short";
+    }
 
     const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
     const socket = getSocket();
-    if (!socket.connected) {
-      console.error("Socket not connected");
-      return;
+    if (socket.connected) {
+      socket.emit("change-pomo-mode", { roomId, mode: modeMap[next], durations: state.durations });
     }
-    console.log("Emitting change-pomo-mode for roomId:", roomId, "mode:", modeMap[next]);
-    socket.emit("change-pomo-mode", { roomId, mode: modeMap[next], durations: state.durations });
   };
 
   const handleChangeMode = (phase: Phase) => {
@@ -281,16 +284,22 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
       const remaining = Math.max(0, endTime - now);
 
       if (remaining <= 0) {
+        clearInterval(interval);
+
         // Timer finished - only host can advance
         if (state.isCurrentUserHost) {
+          const newCount = currentPhase === "pomo" ? state.pomoCount + 1 : state.pomoCount;
           if (currentPhase === "pomo") dispatch({ type: "INCREMENT_POMO_COUNT" });
-          const next = getNextPhase(currentPhase);
-          if (next) {
-            const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
-            const socket = getSocket();
-            if (socket.connected) {
-              socket.emit("change-pomo-mode", { roomId, mode: modeMap[next], durations: state.durations });
-            }
+
+          let next: Phase = "pomo";
+          if (currentPhase === "pomo") {
+            next = newCount % 4 === 0 ? "long" : "short";
+          }
+
+          const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
+          const socket = getSocket();
+          if (socket.connected) {
+            socket.emit("change-pomo-mode", { roomId, mode: modeMap[next], durations: state.durations });
           }
         }
         return;
@@ -302,7 +311,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [state.isRunning, state.serverPomodoroState?.endTime, state.isCurrentUserHost, state.durations, state.isBreak, state.isLongBreak, state.pomoCount, roomId]);
+  }, [state.isRunning, state.serverPomodoroState?.endTime, state.isCurrentUserHost, state.durations, currentPhase, state.pomoCount, roomId]);
 
   return (
     <div
