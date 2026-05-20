@@ -1,6 +1,6 @@
 "use client";
-import { useReducer, useEffect } from "react";
-import { SkipForward, Settings, X, Save } from "lucide-react";
+import { useReducer, useEffect, useState } from "react";
+import { SkipForward, Settings, X, Save, ChevronUp, Clock } from "lucide-react";
 import { getSocket } from "@/lib/socket";
 import { supabase } from "@/supabaseClient";
 
@@ -108,8 +108,10 @@ function timerReducer(state: TimerState, action: TimerAction): TimerState {
   }
 }
 
+
 export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
   const [state, dispatch] = useReducer(timerReducer, initialState);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const currentPhase: Phase = state.isLongBreak ? "long" : state.isBreak ? "short" : "pomo";
 
@@ -294,144 +296,171 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
   }, [state.isRunning, state.serverPomodoroState?.endTime, state.isCurrentUserHost, state.durations, state.isBreak, state.isLongBreak, state.pomoCount, roomId]);
 
   return (
-    <div className="w-full bg-(--light-blue) rounded-[30px] border-4 border-(--dark-blue) p-4 sm:p-6 lg:p-8 flex flex-col items-center justify-center gap-4 lg:gap-6">
-      {state.showSettings ? (
-        /* Settings panel */
-        <div className="flex flex-col w-full gap-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-(--dark-blue) font-bold text-xl">Settings</h2>
-            <button
-              onClick={() => dispatch({ type: "TOGGLE_SETTINGS" })}
-              className="text-white p-1 bg-(--dark-blue) rounded-md hover:opacity-50 cursor-pointer"
-            >
-              <X size={20} />
-            </button>
-          </div>
+    <div
+      className={`w-full bg-(--light-blue) rounded-[30px] border-4 border-(--dark-blue) p-6 flex flex-col items-center justify-center transition-[gap] duration-300 ease-in-out ${isCollapsed ? "gap-0" : "gap-4 lg:gap-6"
+        }`}
+    >
+      <div className="relative flex items-center justify-center w-full">
+        <h2 className="text-(--dark-blue) font-(family-name:--font-pixelify) font-bold text-lg tracking-widest text-center flex items-center gap-2">
+          <Clock size={20} />
+          Timer
+        </h2>
+        <button
+          onClick={() => setIsCollapsed((c) => !c)}
+          className="absolute right-0 text-(--dark-blue) hover:opacity-50 cursor-pointer"
+        >
+          <ChevronUp
+            size={20}
+            className={`transition-transform duration-300 ease-in-out ${isCollapsed ? "rotate-180" : ""
+              }`}
+          />
+        </button>
+      </div>
 
-          {(["pomo", "short", "long"] as Phase[]).map((phase) => (
-            <div key={phase} className="flex justify-between items-center">
-              <label className="text-(--dark-blue)">
-                {phase === "pomo"
-                  ? "Pomodoro"
-                  : phase === "short"
-                    ? "Short Break"
-                    : "Long Break"}
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={200}
-                value={state.draft[phase]}
-                onChange={(e) => {
-                  const val = Math.min(
-                    200,
-                    Math.max(1, Number(e.target.value)),
-                  );
-                  dispatch({ type: "UPDATE_DRAFT", payload: { [phase]: val } });
-                }}
-                disabled={!state.isCurrentUserHost}
-                className="w-16 text-center font-mono text-(--dark-blue) bg-white/75 border-2 border-(--dark-blue) rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-              />
+      <div
+        className={`w-full overflow-hidden transition-[max-height] duration-300 ease-in-out ${isCollapsed ? "max-h-0" : "max-h-150"
+          }`}
+      >
+        <div className="flex flex-col items-center justify-center gap-4 lg:gap-6 pb-1">
+          {state.showSettings ? (
+            /* Settings panel */
+            <div className="flex flex-col w-full gap-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-(--dark-blue) font-bold text-xl">Settings</h2>
+                <button
+                  onClick={() => dispatch({ type: "TOGGLE_SETTINGS" })}
+                  className="text-white p-1 bg-(--dark-blue) rounded-md hover:opacity-50 cursor-pointer"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {(["pomo", "short", "long"] as Phase[]).map((phase) => (
+                <div key={phase} className="flex justify-between items-center">
+                  <label className="text-(--dark-blue)">
+                    {phase === "pomo"
+                      ? "Pomodoro"
+                      : phase === "short"
+                        ? "Short Break"
+                        : "Long Break"}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={200}
+                    value={state.draft[phase]}
+                    onChange={(e) => {
+                      const val = Math.min(
+                        200,
+                        Math.max(1, Number(e.target.value)),
+                      );
+                      dispatch({ type: "UPDATE_DRAFT", payload: { [phase]: val } });
+                    }}
+                    disabled={!state.isCurrentUserHost}
+                    className="w-16 text-center font-mono text-(--dark-blue) bg-white/75 border-2 border-(--dark-blue) rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+              ))}
+
+              <div className="flex items-center gap-4 mt-1">
+                <button
+                  onClick={() => dispatch({ type: "RESET_SETTINGS" })}
+                  disabled={!state.isCurrentUserHost}
+                  className="text-sm rounded-lg shrink-0 px-4 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-white/75 cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Reset
+                </button>
+                <button
+                  onClick={handleSaveSettings}
+                  disabled={!state.isCurrentUserHost}
+                  className="text-sm rounded-lg flex-1 px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-(--pastel-yellow) cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    Save <Save size={16} className="inline" />
+                  </span>
+                </button>
+              </div>
             </div>
-          ))}
+          ) : (
+            /* Timer display */
+            <>
+              {/* Toggle */}
+              <div className="flex w-full gap-2 text-white">
+                <button
+                  onClick={() => handleChangeMode("pomo")}
+                  disabled={!state.isCurrentUserHost}
+                  className={`cursor-pointer flex-1 px-1 py-1 text-white transition hover:bg-(--dark-blue) disabled:opacity-50 disabled:cursor-not-allowed ${!state.isBreak && !state.isLongBreak
+                    ? "rounded-sm bg-(--dark-blue)"
+                    : "rounded-sm bg-(--dark-blue)/50"
+                    }`}
+                >
+                  Pomodoro
+                </button>
+                <button
+                  onClick={() => handleChangeMode("short")}
+                  disabled={!state.isCurrentUserHost}
+                  className={`cursor-pointer flex-1 px-1 py-1 transition hover:bg-(--dark-blue) disabled:opacity-50 disabled:cursor-not-allowed ${state.isBreak
+                    ? "rounded-sm bg-(--dark-blue)"
+                    : "rounded-sm bg-(--dark-blue)/50"
+                    }`}
+                >
+                  Short Break
+                </button>
+                <button
+                  onClick={() => handleChangeMode("long")}
+                  disabled={!state.isCurrentUserHost}
+                  className={`cursor-pointer flex-1 px-1 py-1 transition hover:bg-(--dark-blue) disabled:opacity-50 disabled:cursor-not-allowed ${state.isLongBreak
+                    ? "rounded-sm bg-(--dark-blue)"
+                    : "rounded-sm bg-(--dark-blue)/50"
+                    }`}
+                >
+                  Long Break
+                </button>
+              </div>
 
-          <div className="flex items-center gap-4 mt-1">
-            <button
-              onClick={() => dispatch({ type: "RESET_SETTINGS" })}
-              disabled={!state.isCurrentUserHost}
-              className="text-sm rounded-lg shrink-0 px-4 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-white/75 cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Reset
-            </button>
-            <button
-              onClick={handleSaveSettings}
-              disabled={!state.isCurrentUserHost}
-              className="text-sm rounded-lg flex-1 px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-(--pastel-yellow) cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="flex items-center justify-center gap-2">
-                Save <Save size={16} className="inline" />
-              </span>
-            </button>
-          </div>
+              {/* Time */}
+              <p className="bg-white/75 rounded-md w-full text-center font-mono text-5xl lg:text-6xl 2xl:text-7xl text-(--dark-blue)">
+                {String(state.minutes).padStart(2, "0")}:
+                {String(state.seconds).padStart(2, "0")}
+              </p>
+
+              {/* Settings, Start, and Skip buttons */}
+              <div className="flex justify-between w-full text-white">
+                <button
+                  onClick={handleOpenSettings}
+                  disabled={!state.isCurrentUserHost}
+                  className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <Settings size={24} />
+                </button>
+
+                <button
+                  onClick={state.isRunning ? handlePauseTimer : handleStartTimer}
+                  disabled={!state.isCurrentUserHost}
+                  className={`w-35 rounded-[20px] px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-(--pastel-yellow) cursor-pointer transition-all duration-75 disabled:opacity-50 disabled:cursor-not-allowed ${state.isRunning
+                    ? "shadow-none translate-y-1"
+                    : "shadow-[0_4px_0_0_var(--dark-blue)]"
+                    }`}
+                >
+                  {state.isRunning ? "Pause" : "Start"}
+                </button>
+
+                {getNextPhase(currentPhase) !== null ? (
+                  <button
+                    onClick={handleSkip}
+                    disabled={!state.isRunning || !state.isCurrentUserHost}
+                    className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <SkipForward size={24} fill="var(--dark-blue)" />
+                  </button>
+                ) : (
+                  <div className="w-6" />
+                )}
+              </div>
+            </>
+          )}
         </div>
-      ) : (
-        /* Timer display */
-        <>
-          {/* Toggle */}
-          <div className="flex w-full gap-2 text-white">
-            <button
-              onClick={() => handleChangeMode("pomo")}
-              disabled={!state.isCurrentUserHost}
-              className={`cursor-pointer flex-1 px-1 py-1 text-white transition hover:bg-(--dark-blue) disabled:opacity-50 disabled:cursor-not-allowed ${!state.isBreak && !state.isLongBreak
-                ? "rounded-sm bg-(--dark-blue)"
-                : "rounded-sm bg-(--dark-blue)/50"
-                }`}
-            >
-              Pomodoro
-            </button>
-            <button
-              onClick={() => handleChangeMode("short")}
-              disabled={!state.isCurrentUserHost}
-              className={`cursor-pointer flex-1 px-1 py-1 transition hover:bg-(--dark-blue) disabled:opacity-50 disabled:cursor-not-allowed ${state.isBreak
-                ? "rounded-sm bg-(--dark-blue)"
-                : "rounded-sm bg-(--dark-blue)/50"
-                }`}
-            >
-              Short Break
-            </button>
-            <button
-              onClick={() => handleChangeMode("long")}
-              disabled={!state.isCurrentUserHost}
-              className={`cursor-pointer flex-1 px-1 py-1 transition hover:bg-(--dark-blue) disabled:opacity-50 disabled:cursor-not-allowed ${state.isLongBreak
-                ? "rounded-sm bg-(--dark-blue)"
-                : "rounded-sm bg-(--dark-blue)/50"
-                }`}
-            >
-              Long Break
-            </button>
-          </div>
-
-          {/* Time */}
-          <p className="bg-white/75 rounded-md w-full text-center font-mono text-5xl lg:text-6xl 2xl:text-7xl text-(--dark-blue)">
-            {String(state.minutes).padStart(2, "0")}:
-            {String(state.seconds).padStart(2, "0")}
-          </p>
-
-          {/* Settings, Start, and Skip buttons */}
-          <div className="flex justify-between w-full text-white">
-            <button
-              onClick={handleOpenSettings}
-              disabled={!state.isCurrentUserHost}
-              className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <Settings size={24} />
-            </button>
-
-            <button
-              onClick={state.isRunning ? handlePauseTimer : handleStartTimer}
-              disabled={!state.isCurrentUserHost}
-              className={`w-35 rounded-[20px] px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-(--pastel-yellow) cursor-pointer transition-all duration-75 disabled:opacity-50 disabled:cursor-not-allowed ${state.isRunning
-                ? "shadow-none translate-y-1"
-                : "shadow-[0_4px_0_0_var(--dark-blue)]"
-                }`}
-            >
-              {state.isRunning ? "Pause" : "Start"}
-            </button>
-
-            {getNextPhase(currentPhase) !== null ? (
-              <button
-                onClick={handleSkip}
-                disabled={!state.isRunning || !state.isCurrentUserHost}
-                className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <SkipForward size={24} fill="var(--dark-blue)" />
-              </button>
-            ) : (
-              <div className="w-6" />
-            )}
-          </div>
-        </>
-      )}
+      </div>
     </div>
   );
 }
