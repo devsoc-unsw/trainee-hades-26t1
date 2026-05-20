@@ -6,7 +6,7 @@ import Link from "next/link";
 export default function About() {
   return (
     <div className="text-center mt-45">
-      <h1 className="text-7xl font-bold" style={{ color: "var(--dark-blue)" }}>
+      <h1 className="text-5xl font-bold" style={{ color: "var(--dark-blue)" }}>
         {" "}
         About StudyNook.
       </h1>
@@ -67,18 +67,24 @@ export default function About() {
         /> */}
 				<div className="relative">
 					<Image
-						src="/assets/scroll-frame.png"
+						src="/assets/pen-scroll.png"
 						alt="scroll about"
-						width={1200}
-						height={1200}
-						className="w-[350vw] max-w-270 object-contain"
+						width={600}
+						height={600}
+						className="w-[200vw] max-w-150 object-contain"
 					/>
 					<p
-						className="font-mono absolute font-bold text-shadow-lg text-3xl max-w-[100vw]"
-						style={{ color: "black", top: "15%", left: "50%", transform: "translate(-50%, 0%)" }}
+						className="absolute font-semibold text-md max-w-[100vw] shadow-none"
+						style={{ color: "var(--dark-blue)", top: "15%", left: "50%", transform: "translate(-50%, 0%)" }}
 					>
 						{" "}
-						Studynook is a Social study platform built around a 2D interactive map ... insert the rest of the text here
+						Studynook is a Social study platform built around a 2D interactive map which promotes productivity and light social interaction.
+            {" "}
+            <span className="flex flex-col mb-5"/>
+            Users can set and customise their room's study topic, and engage with multipler users through interactive pixel sprites inspired by gamification.
+            {" "}
+            <span className="flex flex-col mb-5"/>
+            Each room contains a pomodoro and task list, with random bonding questions and chats during breaks to maintain user engagement.
 					</p>
 
 				</div>
