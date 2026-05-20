@@ -490,16 +490,10 @@ export default function Room() {
                     <div key={c.id} className="flex flex-col items-center gap-1">
                       <div
                         onClick={() => handleCharacterChange(c)}
-<<<<<<< HEAD
-                        className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 flex-shrink-0 ${
-                          selectedCharacter.id === c.id ? "border-white" : "border-transparent"
-                        }`}
-=======
                         className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 flex-shrink-0 ${selectedCharacter.id === c.id
                           ? "border-white"
                           : "border-transparent"
                           }`}
->>>>>>> main
                         style={{
                           backgroundImage: `url(${c.src})`,
                           backgroundRepeat: "no-repeat",
@@ -516,17 +510,11 @@ export default function Room() {
             </div>
           </div>
 
-<<<<<<< HEAD
-          <div className="w-full xl:w-1/3 flex flex-col gap-6 xl:gap-8 p-4 sm:p-6 xl:p-8">
-            <PomodoroTimer />
-            <TodoList />
-=======
           {/* Productivity Tools (Pomdoro and Todo-List) */}
           <div className="w-full xl:w-1/3 flex flex-col gap-8 p-8">
             <PomodoroTimer roomId={roomId} />
             <TodoList roomId={roomId} todoState={todoState} />
             {/* Chat Feature: To-be-implemented? */}
->>>>>>> main
             <div className="flex-1 bg-(--light-blue) border-4 border-(--dark-blue) text-(--dark-blue) rounded-[30px] p-6">
               Welcome to your Study Nook!
             </div>
