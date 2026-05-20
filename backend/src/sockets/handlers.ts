@@ -18,7 +18,7 @@ interface TodoState {
 interface RoomUser {
   userId: string;
   name: string;
-  characterId?: string; // ✅ NEW
+  characterId?: string;
 }
 
 interface RoomState {
@@ -29,12 +29,7 @@ interface RoomState {
 }
 
 const roomStates = new Map<string, RoomState>();
-const socketUsers = new Map<
-  string,
-  { userId: string; roomId: string; token: string }
->();
-
-// ---------------- AUTH HELPERS ----------------
+const socketUsers = new Map<string, { userId: string; roomId: string; token: string }>();
 
 async function getUserFromToken(token: string): Promise<string | null> {
   try {
@@ -47,32 +42,26 @@ async function getUserFromToken(token: string): Promise<string | null> {
   }
 }
 
-async function getUserProfile(userId: string, token: string): Promise<{ name: string }> {
+async function getUserProfile(userId: string, token: string) {
   try {
     const client = createSupabaseClient(token);
     const { data, error } = await client
       .from("profiles")
-      .select("name")
+      .select("name, character_id")
       .eq("id", userId)
       .single();
 
-    if (error || !data) return { name: "Unknown" };
-    return { name: data.name };
+    if (error || !data) return { name: "Unknown", characterId: "girl1" };
+    return {
+      name: data.name as string,
+      characterId: (data.character_id as string) ?? "girl1",
+    };
   } catch {
-    return { name: "Unknown" };
+    return { name: "Unknown", characterId: "girl1" };
   }
 }
 
-// ---------------- ROOM LOAD ----------------
-
-async function fetchRoomStateFromSupabase(
-  roomId: string,
-  token: string,
-): Promise<{
-  pomodoroState: PomodoroState | null;
-  todoState: TodoState | null;
-  backgroundId: string;
-}> {
+async function fetchRoomStateFromSupabase(roomId: string, token: string) {
   const client = createSupabaseClient(token);
 
   const [pomosResult, todosResult, roomResult] = await Promise.all([
@@ -82,12 +71,10 @@ async function fetchRoomStateFromSupabase(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-
     client.from("todos")
       .select("*")
       .eq("room_id", roomId)
       .maybeSingle(),
-
     client.from("rooms")
       .select("background_id")
       .eq("id", roomId)
@@ -106,10 +93,7 @@ async function fetchRoomStateFromSupabase(
     : null;
 
   const todoState = todosResult.data
-    ? {
-        id: todosResult.data.id,
-        items: todosResult.data.items,
-      }
+    ? { id: todosResult.data.id, items: todosResult.data.items }
     : null;
 
   const backgroundId = roomResult.data?.background_id ?? "default";
@@ -117,24 +101,15 @@ async function fetchRoomStateFromSupabase(
   return { pomodoroState, todoState, backgroundId };
 }
 
-// ---------------- BACKGROUND SAVE ----------------
-
-async function saveBackgroundToSupabase(
-  roomId: string,
-  backgroundId: string,
-  token: string,
-) {
+async function saveBackgroundToSupabase(roomId: string, backgroundId: string, token: string) {
   const client = createSupabaseClient(token);
   await client.from("rooms").update({ background_id: backgroundId }).eq("id", roomId);
 }
-
-// ---------------- SOCKET HANDLER ----------------
 
 export const roomHandler = (io: Server) => {
   io.on("connection", (socket: Socket) => {
     console.log(`User connected: ${socket.id}`);
 
-    // ---------------- JOIN ROOM ----------------
     socket.on("join-room", async ({ roomId, token }) => {
       const userId = await getUserFromToken(token);
       if (!userId) {
@@ -150,25 +125,13 @@ export const roomHandler = (io: Server) => {
         const { pomodoroState, todoState, backgroundId } =
           await fetchRoomStateFromSupabase(roomId, token);
 
-        room = {
-          users: new Map(),
-          pomodoroState,
-          todoState,
-          backgroundId,
-        };
-
+        room = { users: new Map(), pomodoroState, todoState, backgroundId };
         roomStates.set(roomId, room);
       }
 
-      const { name } = await getUserProfile(userId, token);
+      const { name, characterId } = await getUserProfile(userId, token);
 
-      // ✅ default character assigned here
-      room.users.set(userId, {
-        userId,
-        name,
-        characterId: "girl1",
-      });
-
+      room.users.set(userId, { userId, name, characterId });
       socketUsers.set(socket.id, { userId, roomId, token });
 
       socket.emit("room-state", {
@@ -178,16 +141,11 @@ export const roomHandler = (io: Server) => {
         backgroundId: room.backgroundId,
       });
 
-      socket.to(roomId).emit("user-joined", {
-        userId,
-        name,
-        characterId: "girl1",
-      });
+      socket.to(roomId).emit("user-joined", { userId, name, characterId });
 
-      console.log(`User ${userId} (${name}) joined room ${roomId}`);
+      console.log(`User ${userId} (${name}) joined room ${roomId} with character ${characterId}`);
     });
 
-    // ---------------- BACKGROUND ----------------
     socket.on("update-background", async ({ roomId, backgroundId }) => {
       const session = socketUsers.get(socket.id);
       if (!session) return;
@@ -196,44 +154,36 @@ export const roomHandler = (io: Server) => {
       if (room) room.backgroundId = backgroundId;
 
       await saveBackgroundToSupabase(roomId, backgroundId, session.token);
-
       io.to(roomId).emit("background-updated", { backgroundId });
     });
 
-    // ---------------- CHARACTER UPDATE (NEW) ----------------
-    socket.on(
-      "update-character",
-      ({ roomId, characterId }: { roomId: string; characterId: string }) => {
-        const session = socketUsers.get(socket.id);
-        if (!session) return;
+    socket.on("update-character", ({ roomId, characterId }: { roomId: string; characterId: string }) => {
+      const session = socketUsers.get(socket.id);
+      if (!session) return;
 
-        const room = roomStates.get(roomId);
-        if (!room) return;
+      const room = roomStates.get(roomId);
+      if (!room) return;
 
-        const user = room.users.get(session.userId);
-        if (!user) return;
+      const user = room.users.get(session.userId);
+      if (!user) return;
 
-        user.characterId = characterId;
+      user.characterId = characterId;
 
-        io.to(roomId).emit("room-state", {
-          users: Array.from(room.users.values()),
-          pomodoroState: room.pomodoroState,
-          todoState: room.todoState,
-          backgroundId: room.backgroundId,
-        });
-      }
-    );
+      io.to(roomId).emit("room-state", {
+        users: Array.from(room.users.values()),
+        pomodoroState: room.pomodoroState,
+        todoState: room.todoState,
+        backgroundId: room.backgroundId,
+      });
+    });
 
-    // ---------------- LEAVE ROOM ----------------
     socket.on("leave-room", ({ roomId, userId }) => {
       socketUsers.delete(socket.id);
       socket.leave(roomId);
 
       const room = roomStates.get(roomId);
-
       if (room) {
         room.users.delete(userId);
-
         if (room.users.size === 0) {
           roomStates.delete(roomId);
         } else {
@@ -242,7 +192,6 @@ export const roomHandler = (io: Server) => {
       }
     });
 
-    // ---------------- CHAT ----------------
     socket.on("send-message", ({ roomId, userId, message }) => {
       io.to(roomId).emit("new-message", {
         userId,
@@ -251,20 +200,14 @@ export const roomHandler = (io: Server) => {
       });
     });
 
-    // ---------------- DISCONNECT ----------------
     socket.on("disconnect", () => {
       const session = socketUsers.get(socket.id);
-
       if (session) {
         const { userId, roomId } = session;
-
         socketUsers.delete(socket.id);
-
         const room = roomStates.get(roomId);
-
         if (room) {
           room.users.delete(userId);
-
           if (room.users.size === 0) {
             roomStates.delete(roomId);
           } else {
@@ -272,7 +215,6 @@ export const roomHandler = (io: Server) => {
           }
         }
       }
-
       console.log(`User disconnected: ${socket.id}`);
     });
   });

@@ -9,11 +9,8 @@ router.post("/room", supabaseAuth, async (req: Request, res: Response) => {
     const { roomTitle, description, location } = req.body;
     const supabaseClient = req.supabaseClient;
 
-    // Validate required fields
     if (!roomTitle) {
-      return res.status(400).json({
-        error: "Missing required field: roomTitle"
-      });
+      return res.status(400).json({ error: "Missing required field: roomTitle" });
     }
 
     if (!req.authUser || !supabaseClient) {
@@ -22,7 +19,6 @@ router.post("/room", supabaseAuth, async (req: Request, res: Response) => {
       });
     }
 
-    // Create room entry
     const roomData = {
       room_title: roomTitle,
       description: description || "",
@@ -43,9 +39,7 @@ router.post("/room", supabaseAuth, async (req: Request, res: Response) => {
 
     res.status(201).json({
       message: "Room created successfully",
-      data: {
-        room: roomResult[0]
-      }
+      data: { room: roomResult[0] }
     });
   } catch (err) {
     console.error(err);
@@ -64,7 +58,7 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
 
     const { data, error } = await supabaseClient
       .from("rooms")
-      .select("id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at")
+      .select("id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at, backgroundId:background_id")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -91,7 +85,7 @@ router.get("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
 
     const { data, error } = await supabaseClient
       .from("rooms")
-      .select("id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at")
+      .select("id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at, backgroundId:background_id")
       .eq("id", roomId)
       .single();
 
@@ -111,7 +105,7 @@ router.get("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
 router.put("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
   try {
     const { roomId } = req.params;
-    const { roomTitle, description, location } = req.body;
+    const { roomTitle, description, location, backgroundId } = req.body;
     const supabaseClient = req.supabaseClient;
     const authUser = req.authUser;
 
@@ -123,20 +117,19 @@ router.put("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    // Build update object with only provided fields
     const updateData: any = {};
     if (roomTitle !== undefined) updateData.room_title = roomTitle;
     if (description !== undefined) updateData.description = description;
     if (location !== undefined) updateData.location = location;
+    if (backgroundId !== undefined) updateData.background_id = backgroundId;
 
-    // Ensure at least one field is provided
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({
-        error: "Please provide at least one field to update (roomTitle, description, or location)"
+        error: "Please provide at least one field to update"
       });
     }
 
-    // Check if user is authorized
+    // Check if user is a member of the room
     const { data: profileData, error: profileError } = await supabaseClient
       .from("profiles")
       .select("room")
@@ -155,14 +148,14 @@ router.put("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
       .from("rooms")
       .update(updateData)
       .eq("id", roomId)
-      .select("id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at")
+      .select("id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at, backgroundId:background_id")
       .single();
 
     if (error) {
       console.error("Supabase error:", error);
       return res.status(500).json({ error: "Failed to update room" });
     }
-    
+
     console.log("Room updated successfully:", data);
     res.json(data);
   } catch (err) {
