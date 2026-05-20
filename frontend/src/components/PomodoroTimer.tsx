@@ -297,7 +297,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
 
   return (
     <div
-      className={`w-full bg-(--light-blue) rounded-[30px] border-4 border-(--dark-blue) p-4 sm:p-6 lg:p-8 flex flex-col items-center justify-center transition-[gap] duration-300 ease-in-out ${isCollapsed ? "gap-0" : "gap-4 lg:gap-6"
+      className={`w-full bg-(--light-blue) rounded-[30px] border-4 border-(--dark-blue) p-6 flex flex-col items-center justify-center transition-[gap] duration-300 ease-in-out ${isCollapsed ? "gap-0" : "gap-4 lg:gap-6"
         }`}
     >
       <div className="relative flex items-center justify-center w-full">
