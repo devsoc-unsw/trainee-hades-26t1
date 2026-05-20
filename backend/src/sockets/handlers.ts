@@ -10,9 +10,21 @@ interface PomodoroState {
   remainingTime: number | null;
 }
 
+interface TodoItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
 interface TodoState {
   id: string;
-  items: unknown;
+  items: TodoItem[];
+}
+
+interface RoomUser {
+  userId: string;
+  name: string;
+  characterId?: string; // ✅ NEW
 }
 
 interface RoomUser {
@@ -31,7 +43,10 @@ interface RoomState {
 }
 
 const roomStates = new Map<string, RoomState>();
-const socketUsers = new Map<string, { userId: string; roomId: string; token: string }>();
+const socketUsers = new Map<
+  string,
+  { userId: string; roomId: string; token: string }
+>();
 
 async function getUserFromToken(token: string): Promise<string | null> {
   try {
@@ -71,7 +86,8 @@ async function fetchRoomStateFromSupabase(
   todoState: TodoState | null;
   backgroundId: string;
 }> {
-  const client = createSupabaseClient(token);
+  try {
+    const client = createSupabaseClient(token);
 
   const [pomosResult, todosResult, roomResult, backgroundResult] = await Promise.all([
     client.from("pomos")
@@ -92,16 +108,16 @@ async function fetchRoomStateFromSupabase(
       .maybeSingle(),
   ]);
 
-  const pomodoroState = pomosResult.data
-    ? {
-        id: pomosResult.data.id,
-        duration: pomosResult.data.duration,
-        status: pomosResult.data.status,
-        mode: pomosResult.data.mode,
-        endTime: pomosResult.data.end_time,
-        remainingTime: pomosResult.data.remaining_time,
-      }
-    : null;
+    const pomodoroState = pomosResult.data
+      ? {
+          id: pomosResult.data.id,
+          duration: pomosResult.data.duration,
+          status: pomosResult.data.status,
+          mode: pomosResult.data.mode,
+          endTime: pomosResult.data.end_time,
+          remainingTime: pomosResult.data.remaining_time,
+        }
+      : null;
 
   const todoState = todosResult.data
     ? {
@@ -110,10 +126,36 @@ async function fetchRoomStateFromSupabase(
       }
     : null;
 
-  const hostId = roomResult.data?.created_by || null;
+    const hostId = roomResult.data?.created_by || null;
   const backgroundId = backgroundResult.data?.background_id ?? "default";
 
   return { hostId, pomodoroState, todoState, backgroundId };
+  } catch (err) {
+    console.error("fetchRoomStateFromSupabase failed:", err);
+    return { hostId: null, pomodoroState: null, todoState: null, backgroundId: "default" };
+  }
+}
+
+async function saveTodosToSupabase(
+  todoId: string,
+  items: TodoItem[],
+  token: string,
+): Promise<boolean> {
+  try {
+    const { error } = await createSupabaseClient(token)
+      .from("todos")
+      .update({ items })
+      .eq("id", todoId);
+
+    if (error) {
+      console.error("Failed to save todos:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("saveTodosToSupabase failed:", err);
+    return false;
+  }
 }
 
 // ---------------- BACKGROUND SAVE ----------------
@@ -135,8 +177,10 @@ export const roomHandler = (io: Server) => {
 
     // ---------------- JOIN ROOM ----------------
     socket.on("join-room", async ({ roomId, token }) => {
+      console.log("[Handler] join-room received:", { roomId, socketId: socket.id });
       const userId = await getUserFromToken(token);
       if (!userId) {
+        console.log("[Handler] Unauthorized join attempt");
         socket.emit("error", { message: "Unauthorized" });
         return;
       }
@@ -157,6 +201,9 @@ export const roomHandler = (io: Server) => {
         };
 
         roomStates.set(roomId, room);
+        console.log("[Handler] Room initialized with todoState:", todoState ? "yes" : "no");
+      } else {
+        console.log("[Handler] Existing room found in memory");
       }
 
       const { name } = await getUserProfile(userId, token);
@@ -183,6 +230,7 @@ export const roomHandler = (io: Server) => {
         return;
       }
 
+      console.log("[Handler] Emitting room-state to socket:", socket.id);
       socket.emit("room-state", {
         users: Array.from(room.users.values()),
         hostId: room.hostId,
@@ -254,6 +302,207 @@ export const roomHandler = (io: Server) => {
         }
       }
     });
+
+    // Add todo handler
+    socket.on(
+      "add-todo",
+      async ({ roomId, item }: { roomId: string; item: TodoItem }) => {
+        console.log("[Handler] add-todo received:", { roomId, item });
+        const session = socketUsers.get(socket.id);
+        console.log("[Handler] session lookup:", session ? "found" : "NOT FOUND");
+        if (!session || session.roomId !== roomId) {
+          console.log("[Handler] Authorization failed: socket not in socketUsers or roomId mismatch");
+          socket.emit("error", { message: "Unauthorized or room mismatch" });
+          return;
+        }
+
+        const room = roomStates.get(roomId);
+        console.log("[Handler] room lookup:", room ? "found" : "NOT FOUND");
+        if (!room) {
+          socket.emit("error", { message: "Room not found" });
+          return;
+        }
+
+        // Check for duplicates before proceeding
+        if (
+          room.todoState &&
+          room.todoState.items.some((i) => i.id === item.id)
+        ) {
+          console.log("[Handler] Duplicate todo detected");
+          socket.emit("error", { message: "Todo already exists" });
+          return;
+        }
+
+        // Initialize todoState if it doesn't exist
+        if (!room.todoState) {
+          console.log("[Handler] Initializing todoState for room:", roomId);
+          try {
+            const { data, error: insertError } = await createSupabaseClient(
+              session.token,
+            )
+              .from("todos")
+              .insert({ room_id: roomId, items: [item] })
+              .select()
+              .single();
+
+            if (insertError || !data) {
+              console.error("add-todo insert failed:", insertError);
+              socket.emit("error", {
+                message: "Failed to create todo list",
+              });
+              return;
+            }
+
+            room.todoState = {
+              id: data.id,
+              items: data.items || [item],
+            };
+            console.log("[Handler] todoState initialized with ID:", room.todoState.id);
+          } catch (err) {
+            console.error("add-todo insert exception:", err);
+            socket.emit("error", { message: "Internal server error" });
+            return;
+          }
+        } else {
+          // TodoState exists, add to it
+          console.log("[Handler] Adding item to existing todoState");
+          room.todoState.items.push(item);
+          const saved = await saveTodosToSupabase(
+            room.todoState.id,
+            room.todoState.items,
+            session.token,
+          );
+
+          if (!saved) {
+            // Revert the in-memory change if save failed
+            room.todoState.items.pop();
+            console.log("[Handler] Save failed, reverted change");
+            socket.emit("error", {
+              message: "Failed to save todo",
+            });
+            return;
+          }
+        }
+
+        console.log("[Handler] Broadcasting todo-updated to room:", roomId);
+        io.to(roomId).emit("todo-updated", { todoState: room.todoState });
+      },
+    );
+
+    // Remove todo handler
+    socket.on(
+      "remove-todo",
+      async ({ roomId, todoId }: { roomId: string; todoId: string }) => {
+        console.log("[Handler] remove-todo received:", { roomId, todoId });
+        const session = socketUsers.get(socket.id);
+        console.log("[Handler] session lookup:", session ? "found" : "NOT FOUND");
+        if (!session || session.roomId !== roomId) {
+          console.log("[Handler] Authorization failed");
+          socket.emit("error", { message: "Unauthorized or room mismatch" });
+          return;
+        }
+
+        const room = roomStates.get(roomId);
+        if (!room?.todoState) {
+          console.log("[Handler] No todoState found");
+          socket.emit("error", { message: "No todos to remove" });
+          return;
+        }
+
+        const initialLength = room.todoState.items.length;
+        room.todoState.items = room.todoState.items.filter(
+          (i) => i.id !== todoId,
+        );
+
+        // If item wasn't found, it was already removed (race condition) - just sync state
+        if (room.todoState.items.length === initialLength) {
+          console.log("[Handler] Todo already removed (race condition):", todoId);
+          // Broadcast current state so all users stay synced
+          io.to(roomId).emit("todo-updated", { todoState: room.todoState });
+          return;
+        }
+
+        console.log("[Handler] Saving updated todos to DB");
+        const saved = await saveTodosToSupabase(
+          room.todoState.id,
+          room.todoState.items,
+          session.token,
+        );
+
+        if (!saved) {
+          // Revert the in-memory change if save failed
+          room.todoState.items = room.todoState.items.concat(
+            { id: todoId, text: "", completed: false }, // placeholder
+          );
+          console.log("[Handler] Save failed, reverted change");
+          socket.emit("error", { message: "Failed to remove todo" });
+          return;
+        }
+
+        console.log("[Handler] Broadcasting todo-updated to room:", roomId);
+        io.to(roomId).emit("todo-updated", { todoState: room.todoState });
+      },
+    );
+
+    // Update todo handler
+    socket.on(
+      "update-todo",
+      async ({
+        roomId,
+        todoId,
+        changes,
+      }: {
+        roomId: string;
+        todoId: string;
+        changes: Partial<Omit<TodoItem, "id">>;
+      }) => {
+        console.log("[Handler] update-todo received:", { roomId, todoId, changes });
+        const session = socketUsers.get(socket.id);
+        console.log("[Handler] session lookup:", session ? "found" : "NOT FOUND");
+        if (!session || session.roomId !== roomId) {
+          console.log("[Handler] Authorization failed");
+          socket.emit("error", { message: "Unauthorized or room mismatch" });
+          return;
+        }
+
+        const room = roomStates.get(roomId);
+        if (!room?.todoState) {
+          console.log("[Handler] No todoState found");
+          socket.emit("error", { message: "No todos to update" });
+          return;
+        }
+
+        const item = room.todoState.items.find((i) => i.id === todoId);
+        if (!item) {
+          console.log("[Handler] Todo not found:", todoId);
+          socket.emit("error", { message: "Todo not found" });
+          return;
+        }
+
+        // Store original state in case we need to revert
+        const originalItem = { ...item };
+        console.log("[Handler] Updating item:", { original: originalItem, changes });
+        Object.assign(item, changes);
+
+        console.log("[Handler] Saving updated todos to DB");
+        const saved = await saveTodosToSupabase(
+          room.todoState.id,
+          room.todoState.items,
+          session.token,
+        );
+
+        if (!saved) {
+          // Revert the in-memory change if save failed
+          Object.assign(item, originalItem);
+          console.log("[Handler] Save failed, reverted change");
+          socket.emit("error", { message: "Failed to update todo" });
+          return;
+        }
+
+        console.log("[Handler] Broadcasting todo-updated to room:", roomId);
+        io.to(roomId).emit("todo-updated", { todoState: room.todoState });
+      },
+    );
 
     // Send message handler
     socket.on(
@@ -651,5 +900,3 @@ export const roomHandler = (io: Server) => {
     });
   });
 };
-
-export const todoHandler = (io: Server) => {};
