@@ -73,6 +73,38 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/rooms/:roomId/todos - Get todos for a specific room
+router.get("/:roomId/todos", supabaseAuth, async (req: Request, res: Response) => {
+  try {
+    const { roomId } = req.params;
+    const supabaseClient = req.supabaseClient;
+
+    if (!supabaseClient) {
+      return res.status(500).json({ error: "Supabase client not initialized" });
+    }
+
+    const { data, error } = await supabaseClient
+      .from("todos")
+      .select("*")
+      .eq("room_id", roomId)
+      .single();
+
+    if (error) {
+      // If not found, return null todoState (room may not have todos yet)
+      if (error.code === "PGRST116") {
+        return res.json(null);
+      }
+      console.error("Supabase error:", error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // GET /api/rooms/:roomId - Get a specific room
 router.get("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
   try {
@@ -158,6 +190,38 @@ router.put("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
 
     console.log("Room updated successfully:", data);
     res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/:roomId/users", supabaseAuth, async (req: Request, res: Response) => {
+  try {
+    const { roomId } = req.params;
+    const supabaseClient = req.supabaseClient;
+
+    if (!supabaseClient) {
+      return res.status(500).json({ error: "Supabase client not initialized" });
+    }
+
+    const { data, error } = await supabaseClient
+      .from("profiles")
+      .select("id, name")
+      .eq("room", roomId);
+
+    if (error) {
+      console.error("Supabase error:", error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    // Map to RoomUser type
+    const users = data.map((u: any) => ({
+      userId: u.id,
+      name: u.name
+    }));
+
+    res.json(users);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
