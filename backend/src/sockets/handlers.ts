@@ -916,7 +916,7 @@ export const roomHandler = (io: Server) => {
       },
     );
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async() => {
       const session = socketUsers.get(socket.id);
       if (session) {
         const { userId, roomId } = session;
@@ -930,6 +930,14 @@ export const roomHandler = (io: Server) => {
             socket.to(roomId).emit("user-left", { userId });
           }
         }
+
+        // Clear room from database
+        const client = createSupabaseClient(session.token);
+        await client
+          .from("profiles")
+          .update({ room: null })
+          .eq("id", session.userId);
+        console.log(`User ${userId} disconnected and left room ${roomId}`);
       }
       console.log(`User disconnected: ${socket.id}`);
     });

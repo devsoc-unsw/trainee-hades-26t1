@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Trash2, Check, Plus, ChevronUp, ListChecks } from "lucide-react";
 import { getSocket } from "@/lib/socket";
 import type { TodoState, TodoItem } from "@/lib/types";
@@ -14,39 +14,11 @@ function generateId(): string {
 }
 
 export default function TodoList({ roomId, todoState }: TodoListProps) {
-  const [localTodos, setLocalTodos] = useState<TodoItem[]>([]);
   const [input, setInput] = useState("");
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Sync local state with todoState from props
-  useEffect(() => {
-    if (todoState?.items) {
-      setLocalTodos(todoState.items);
-    }
-  }, [todoState?.items]);
-
-  // Listen for todo updates from socket
-  useEffect(() => {
-    const socket = getSocket();
-    console.log("[TodoList] Socket connected:", socket.connected, "Socket ID:", socket.id);
-
-    const handleTodoUpdated = (data: { todoState: TodoState }) => {
-      console.log("[TodoList] Received todo-updated event:", data);
-      setLocalTodos(data.todoState.items);
-    };
-
-    const handleError = (error: any) => {
-      console.error("[TodoList] Socket error:", error);
-    };
-
-    socket.on("todo-updated", handleTodoUpdated);
-    socket.on("error", handleError);
-
-    return () => {
-      socket.off("todo-updated", handleTodoUpdated);
-      socket.off("error", handleError);
-    };
-  }, []);
+  // Read directly from props. No useEffect or local state needed!
+  const todos = todoState?.items || [];
 
   const addTask = () => {
     if (!input.trim()) return;
@@ -58,33 +30,24 @@ export default function TodoList({ roomId, todoState }: TodoListProps) {
       completed: false,
     };
 
-    // Get current todo id 
-    console.log("[TodoList] Emitting add-todo:", { roomId, item: newTodo });
     socket.emit("add-todo", { roomId, item: newTodo });
     setInput("");
   };
 
   const toggleTask = (todoId: string) => {
-    const socket = getSocket();
-    const todo = localTodos.find((t) => t.id === todoId);
+    const todo = todos.find((t) => t.id === todoId);
+    if (!todo) return;
 
-    if (todo) {
-      console.log("[TodoList] Emitting update-todo:", {
-        roomId,
-        todoId,
-        changes: { completed: !todo.completed },
-      });
-      socket.emit("update-todo", {
-        roomId,
-        todoId,
-        changes: { completed: !todo.completed },
-      });
-    }
+    const socket = getSocket();
+    socket.emit("update-todo", {
+      roomId,
+      todoId,
+      changes: { completed: !todo.completed },
+    });
   };
 
   const deleteTask = (todoId: string) => {
     const socket = getSocket();
-    console.log("[TodoList] Emitting remove-todo:", { roomId, todoId });
     socket.emit("remove-todo", { roomId, todoId });
   };
 
@@ -133,7 +96,8 @@ export default function TodoList({ roomId, todoState }: TodoListProps) {
           </div>
 
           <div className="flex flex-col gap-4 overflow-y-auto max-h-64">
-            {localTodos.map((task) => (
+            {/* Map over the direct prop variable */}
+            {todos.map((task) => (
               <div
                 key={task.id}
                 className={`flex items-center justify-between bg-(--dark-blue) text-white rounded-[15px] px-4 py-3 ${task.completed ? "opacity-50" : ""

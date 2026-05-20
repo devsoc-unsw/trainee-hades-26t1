@@ -327,6 +327,7 @@ export default function Room() {
       // Listen for room updates from other users or this user
       socket.on("room-updated", (updatedRoom) => {
         setData(updatedRoom);
+        getRoomUsers(roomId);
       });
 
       // Handle room state initialization from socket

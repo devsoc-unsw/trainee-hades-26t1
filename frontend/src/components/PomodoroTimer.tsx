@@ -48,6 +48,7 @@ type TimerAction =
   | { type: "SET_TIMER"; payload: { minutes: number; seconds: number } }
   | { type: "SET_PHASE"; payload: { isBreak: boolean; isLongBreak: boolean } }
   | { type: "SET_RUNNING"; payload: boolean }
+  | { type: "SET_DURATIONS"; payload: { pomo: number; short: number; long: number } }
   | { type: "INCREMENT_POMO_COUNT" }
   | { type: "TOGGLE_SETTINGS" }
   | { type: "UPDATE_DRAFT"; payload: Partial<{ pomo: number; short: number; long: number }> }
@@ -83,6 +84,8 @@ function timerReducer(state: TimerState, action: TimerAction): TimerState {
       return { ...state, isBreak: action.payload.isBreak, isLongBreak: action.payload.isLongBreak };
     case "SET_RUNNING":
       return { ...state, isRunning: action.payload };
+    case "SET_DURATIONS":
+      return { ...state, durations: action.payload, draft: action.payload };
     case "INCREMENT_POMO_COUNT":
       return { ...state, pomoCount: state.pomoCount + 1 };
     case "TOGGLE_SETTINGS":
@@ -119,9 +122,18 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
   useEffect(() => {
     const socket = getSocket();
 
-    const handleRoomState = (data: { hostId: string; pomodoroState: ServerPomodoroState | null }) => {
-      console.log("Received room-state:", data);
+    const handleRoomState = (data: {
+      hostId: string;
+      pomodoroState: ServerPomodoroState | null;
+      customDurations?: { pomo: number; short: number; long: number }; // Add this
+    }) => {
       dispatch({ type: "SET_HOST_ID", payload: data.hostId });
+
+      // Sync the host's custom durations to the guest
+      if (data.customDurations) {
+        dispatch({ type: "SET_DURATIONS", payload: data.customDurations });
+      }
+
       if (data.pomodoroState) {
         dispatch({ type: "SET_SERVER_STATE", payload: data.pomodoroState });
         syncLocalStateFromServer(data.pomodoroState, dispatch);
@@ -221,6 +233,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
     // Only host can skip/advance timer
     if (!state.isCurrentUserHost) return;
 
+    if (currentPhase === "pomo") dispatch({ type: "INCREMENT_POMO_COUNT" });
     const next = getNextPhase(currentPhase);
     if (!next) return;
 
@@ -247,14 +260,9 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
 
   const handleSaveSettings = () => {
     dispatch({ type: "SAVE_SETTINGS" });
-    // Calculate new duration for current mode
-    const currentModeName = currentPhase === "pomo" ? "pomo" : currentPhase === "short" ? "short" : "long";
-
     const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
     const socket = getSocket();
     socket.emit("change-pomo-mode", { roomId, mode: modeMap[currentPhase], durations: state.draft });
-
-    dispatch({ type: "SET_TIMER", payload: { minutes: state.draft[currentModeName], seconds: 0 } });
   };
 
   const handleOpenSettings = () => {
@@ -275,6 +283,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
       if (remaining <= 0) {
         // Timer finished - only host can advance
         if (state.isCurrentUserHost) {
+          if (currentPhase === "pomo") dispatch({ type: "INCREMENT_POMO_COUNT" });
           const next = getNextPhase(currentPhase);
           if (next) {
             const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
