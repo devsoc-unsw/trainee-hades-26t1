@@ -22,6 +22,7 @@ import { FeedbackModal } from "@/components/FeedbackModal";
 import { getSocket, initSocket } from "@/lib/socket";
 import { Feedback } from "@/lib/types";
 import { backgrounds } from "@/lib/backgrounds";
+import { Switch } from "@/components/ui/switch";
 
 
 interface Room {
@@ -53,6 +54,7 @@ export default function Rooms() {
   const [newRoomTitle, setNewRoomTitle] = useState("");
   const [newRoomDescription, setNewRoomDescription] = useState("");
   const [newRoomLocation, setNewRoomLocation] = useState("");
+  const [newRoomIsPrivate, setNewRoomIsPrivate] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -438,6 +440,27 @@ export default function Rooms() {
                   className="bg-(--dark-blue)/50 w-full px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                   autoFocus
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Private
+                </label>
+                <div className="flex flex-col gap-3 bg-(--dark-blue)/50 w-full min-h-24 px-4 py-2 border border-(--dark-blue) rounded-lg">
+                  <div className="flex gap-3">
+                    <Switch
+                      checked={newRoomIsPrivate}
+                      onCheckedChange={setNewRoomIsPrivate}
+                      size="default"
+                      className="data-checked:bg-(--dark-blue)"
+                    />
+                    <span className="text-sm">
+                      {newRoomIsPrivate ? "Private room" : "Public room"}
+                    </span>
+                  </div>
+                  <span className="text-gray-600">
+                    {newRoomIsPrivate ? "You need to share your password for others to join" : "Anyone can join"}
+                  </span>
+                </div>
               </div>
             </div>
             <DialogFooter className="flex justify-end gap-4 bg-transparent border-none">
