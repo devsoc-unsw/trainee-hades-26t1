@@ -232,8 +232,6 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
   };
 
   const handleSkip = () => {
-    if (!state.isCurrentUserHost) return;
-
     const newCount = currentPhase === "pomo" ? state.pomoCount + 1 : state.pomoCount;
 
     if (currentPhase === "pomo") dispatch({ type: "INCREMENT_POMO_COUNT" });
@@ -374,7 +372,6 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
                       );
                       dispatch({ type: "UPDATE_DRAFT", payload: { [phase]: val } });
                     }}
-                    disabled={!state.isCurrentUserHost}
                     className="w-16 text-center font-mono text-(--dark-blue) bg-white/75 border-2 border-(--dark-blue) rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
@@ -383,14 +380,12 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
               <div className="flex items-center gap-4 mt-1">
                 <button
                   onClick={() => dispatch({ type: "RESET_SETTINGS" })}
-                  disabled={!state.isCurrentUserHost}
                   className="text-sm rounded-lg shrink-0 px-4 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-white/75 cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Reset
                 </button>
                 <button
                   onClick={handleSaveSettings}
-                  disabled={!state.isCurrentUserHost}
                   className="text-sm rounded-lg flex-1 px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-(--pastel-yellow) cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="flex items-center justify-center gap-2">
@@ -406,7 +401,6 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
               <div className="flex w-full gap-2 text-white">
                 <button
                   onClick={() => handleChangeMode("pomo")}
-                  disabled={!state.isCurrentUserHost}
                   className={`cursor-pointer flex-1 px-1 py-1 text-white transition hover:bg-(--dark-blue) disabled:opacity-50 disabled:cursor-not-allowed ${!state.isBreak && !state.isLongBreak
                     ? "rounded-sm bg-(--dark-blue)"
                     : "rounded-sm bg-(--dark-blue)/50"
@@ -416,7 +410,6 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
                 </button>
                 <button
                   onClick={() => handleChangeMode("short")}
-                  disabled={!state.isCurrentUserHost}
                   className={`cursor-pointer flex-1 px-1 py-1 transition hover:bg-(--dark-blue) disabled:opacity-50 disabled:cursor-not-allowed ${state.isBreak
                     ? "rounded-sm bg-(--dark-blue)"
                     : "rounded-sm bg-(--dark-blue)/50"
@@ -426,7 +419,6 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
                 </button>
                 <button
                   onClick={() => handleChangeMode("long")}
-                  disabled={!state.isCurrentUserHost}
                   className={`cursor-pointer flex-1 px-1 py-1 transition hover:bg-(--dark-blue) disabled:opacity-50 disabled:cursor-not-allowed ${state.isLongBreak
                     ? "rounded-sm bg-(--dark-blue)"
                     : "rounded-sm bg-(--dark-blue)/50"
@@ -446,7 +438,6 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
               <div className="flex justify-between w-full text-white">
                 <button
                   onClick={handleOpenSettings}
-                  disabled={!state.isCurrentUserHost}
                   className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <Settings size={24} />
@@ -454,7 +445,6 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
 
                 <button
                   onClick={state.isRunning ? handlePauseTimer : handleStartTimer}
-                  disabled={!state.isCurrentUserHost}
                   className={`w-35 rounded-[20px] px-2 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-(--pastel-yellow) cursor-pointer transition-all duration-75 disabled:opacity-50 disabled:cursor-not-allowed ${state.isRunning
                     ? "shadow-none translate-y-1"
                     : "shadow-[0_4px_0_0_var(--dark-blue)]"
@@ -466,7 +456,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
                 {getNextPhase(currentPhase) !== null ? (
                   <button
                     onClick={handleSkip}
-                    disabled={!state.isRunning || !state.isCurrentUserHost}
+                    disabled={!state.isRunning}
                     className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     <SkipForward size={24} fill="var(--dark-blue)" />

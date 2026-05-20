@@ -619,11 +619,6 @@ export const roomHandler = (io: Server) => {
         return;
       }
 
-      if (session.userId !== room.hostId) {
-        socket.emit("error", { message: "Only host can control timer" });
-        return;
-      }
-
       // Initialize pomodoroState if missing by fetching the trigger-created row
       if (!room.pomodoroState) {
         const client = createSupabaseClient(session.token);
@@ -689,11 +684,6 @@ export const roomHandler = (io: Server) => {
       const room = roomStates.get(roomId);
       if (!room) {
         socket.emit("error", { message: "Room not found" });
-        return;
-      }
-
-      if (session.userId !== room.hostId) {
-        socket.emit("error", { message: "Only host can control timer" });
         return;
       }
 
@@ -766,11 +756,6 @@ export const roomHandler = (io: Server) => {
       const room = roomStates.get(roomId);
       if (!room) {
         socket.emit("error", { message: "Room not found" });
-        return;
-      }
-
-      if (session.userId !== room.hostId) {
-        socket.emit("error", { message: "Only host can control timer" });
         return;
       }
 
