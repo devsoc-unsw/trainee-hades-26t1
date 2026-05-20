@@ -376,12 +376,18 @@ export default function Room() {
       socket.on(
         "room-state",
         (state: {
-          users: string[];
+          users: RoomUser[];
           pomodoroState: any;
           todoState: TodoState | null;
+          backgroundId?: string
         }) => {
           console.log("[RoomPage] Received room-state from socket:", state);
+          setRoomUsers(state.users);
           setTodoState(state.todoState);
+          if (state.backgroundId) {
+            const bg = backgrounds.find((b) => b.id === state.backgroundId);
+            if (bg) setSelectedBg(bg);
+          }
         },
       );
 
@@ -396,25 +402,22 @@ export default function Room() {
       }
 
       socket.on(
-        "room-state",
-        (state: { users: RoomUser[]; backgroundId?: string }) => {
-          setRoomUsers(state.users);
-          if (state.backgroundId) {
-            const bg = backgrounds.find((b) => b.id === state.backgroundId);
-            if (bg) setSelectedBg(bg);
-          }
-        },
-      );
-
-      socket.on(
         "user-joined",
-        ({ userId, name }: { userId: string; name: string }) => {
+        ({ userId, name, characterId }: { userId: string; name: string; characterId: string }) => {
           setRoomUsers((prev) => {
             if (prev.find((u) => u.userId === userId)) return prev;
-            return [...prev, { userId, name }];
+            return [...prev, { userId, name, characterId }];
           });
         },
       );
+
+      socket.on("character-updated", ({ userId, characterId }: { userId: string; characterId: string }) => {
+        setRoomUsers((prevUsers) =>
+          prevUsers.map((user) =>
+            user.userId === userId ? { ...user, characterId } : user
+          )
+        );
+      });
 
       socket.on("user-left", ({ userId }: { userId: string }) => {
         setRoomUsers((prev) => prev.filter((u) => u.userId !== userId));
@@ -438,6 +441,7 @@ export default function Room() {
       socket.off("user-joined");
       socket.off("user-left");
       socket.off("background-updated");
+      socket.off("character-updated");
       socket.off("room-updated");
       socket.off("error");
     };
@@ -546,11 +550,10 @@ export default function Room() {
                   </button>
 
                   <div
-                    className={`absolute bottom-full left-0 mb-2 z-10 origin-bottom transition-all duration-200 ease-out ${
-                      showPicker
-                        ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
-                        : "opacity-0 scale-95 translate-y-1 pointer-events-none"
-                    }`}
+                    className={`absolute bottom-full left-0 mb-2 z-10 origin-bottom transition-all duration-200 ease-out ${showPicker
+                      ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
+                      : "opacity-0 scale-95 translate-y-1 pointer-events-none"
+                      }`}
                   >
                     <div className="bg-(--dark-blue) border-2 border-white/20 rounded-xl p-3 flex flex-col gap-2">
                       {backgrounds.map((b) => (
@@ -564,11 +567,10 @@ export default function Room() {
                             width={80}
                             height={56}
                             onClick={() => handleBgChange(b)}
-                            className={`w-16 sm:w-20 h-12 sm:h-14 object-cover rounded-xl cursor-pointer border-2 ${
-                              selectedBg.id === b.id
-                                ? "border-white"
-                                : "border-transparent hover:border-white/50"
-                            }`}
+                            className={`w-16 sm:w-20 h-12 sm:h-14 object-cover rounded-xl cursor-pointer border-2 ${selectedBg.id === b.id
+                              ? "border-white"
+                              : "border-transparent hover:border-white/50"
+                              }`}
                           />
                           <span className="text-white font-mono text-xs">
                             {b.label}
@@ -589,11 +591,10 @@ export default function Room() {
                   </button>
 
                   <div
-                    className={`absolute bottom-full left-0 mb-2 z-10 origin-bottom transition-all duration-200 ease-out ${
-                      showCharacterPicker
-                        ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
-                        : "opacity-0 scale-95 translate-y-1 pointer-events-none"
-                    }`}
+                    className={`absolute bottom-full left-0 mb-2 z-10 origin-bottom transition-all duration-200 ease-out ${showCharacterPicker
+                      ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
+                      : "opacity-0 scale-95 translate-y-1 pointer-events-none"
+                      }`}
                   >
                     <div className="bg-(--dark-blue) border-2 border-white/20 rounded-xl p-3 flex flex-col gap-2">
                       {characters.map((c) => (
@@ -603,11 +604,10 @@ export default function Room() {
                         >
                           <div
                             onClick={() => handleCharacterChange(c)}
-                            className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 shrink-0 ${
-                              selectedCharacter.id === c.id
-                                ? "border-white"
-                                : "border-transparent"
-                            }`}
+                            className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 shrink-0 ${selectedCharacter.id === c.id
+                              ? "border-white"
+                              : "border-transparent"
+                              }`}
                             style={{
                               backgroundImage: `url(${c.src})`,
                               backgroundRepeat: "no-repeat",
