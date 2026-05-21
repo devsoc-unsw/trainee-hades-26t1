@@ -28,7 +28,7 @@ export function AuthPageShell({
             <img
               src="/cloud.png"
               alt="cloud-left"
-              className="pointer-events-none absolute -bottom-70 -left-50 h-[45rem] w-[45rem] scale-50 object-contain sm:scale-75 lg:scale-100"
+              className="pointer-events-none absolute -bottom-65 -left-50 h-[45rem] w-[45rem] scale-50 object-contain sm:scale-75 lg:scale-100"
             />
             <img
               src={imageSrc}
@@ -38,7 +38,7 @@ export function AuthPageShell({
             <img
               src="/cloud.png"
               alt="cloud-right"
-              className="pointer-events-none absolute -bottom-70 -right-50 h-[45rem] w-[45rem] scale-50 object-contain sm:scale-75 lg:scale-100"
+              className="pointer-events-none absolute -bottom-65 -right-50 h-[45rem] w-[45rem] scale-50 object-contain sm:scale-75 lg:scale-100"
             />
           </div>
         </div>
