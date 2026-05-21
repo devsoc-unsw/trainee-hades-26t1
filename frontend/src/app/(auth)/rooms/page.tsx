@@ -18,7 +18,7 @@ import { supabase } from '@/supabaseClient';
 import { pixelify, poppins } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 import { FeedbackModal } from "@/components/FeedbackModal";
-import { initSocket } from "@/lib/socket";
+import { getSocket, initSocket } from "@/lib/socket";
 import { Feedback } from "@/lib/types";
 import { backgrounds } from "@/lib/backgrounds";
 
@@ -46,7 +46,9 @@ const getRoomBackground = (room: Room) => {
 export default function Rooms() {
   const [filter, setFilter] = useState("");
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
+  const filteredRooms = rooms.filter((room) =>
+    room.roomTitle.toLowerCase().includes(filter.toLowerCase())
+  );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newRoomTitle, setNewRoomTitle] = useState("");
   const [newRoomDescription, setNewRoomDescription] = useState("");
@@ -54,14 +56,6 @@ export default function Rooms() {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-
-  useEffect(() => {
-    setFilteredRooms(
-      rooms.filter((room) =>
-        room.roomTitle.toLowerCase().includes(filter.toLowerCase())
-      )
-    );
-  }, [filter, rooms]);
 
   useEffect(() => {
     setFilter("");
@@ -171,7 +165,6 @@ export default function Rooms() {
 
       const data = await resp.json();
       setRooms(data);
-      setFilteredRooms(data);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching rooms:", error);
@@ -187,24 +180,34 @@ export default function Rooms() {
   };
 
   // Leaves current room and joins new one
-  const leaveAndJoin = async (roomId: number) => {
+  // Leaves current room and joins new one
+  const leaveAndJoin = async (newRoomId: number, oldRoomId: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) return;
 
-      // Clear current room from profile
+      // 1. Explicitly emit leave-room for the old room (This fixes the ghost user bug!)
+      const socket = getSocket();
+      if (socket?.connected) {
+        socket.emit("leave-room", {
+          roomId: String(oldRoomId),
+          userId: session.user.id
+        });
+      }
+
+      // 2. Update profile to the new room via REST
       await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
         },
-        body: JSON.stringify({ room: null }),
+        body: JSON.stringify({ room: newRoomId }), // Put them directly in the new room
       });
 
-      // Now join the new room via socket
-      await joinViaSocket(roomId, token);
+      // 3. Route! (The Room.tsx component will mount and handle socket initialization)
+      router.push(`/room/${newRoomId}`);
     } catch (error) {
       console.error("Error switching rooms:", error);
       setFeedback({
@@ -215,48 +218,6 @@ export default function Rooms() {
         variant: "error",
       });
     }
-  };
-
-  const joinViaSocket = (roomId: number, token: string) => {
-    return new Promise<void>((resolve, reject) => {
-      const socket = initSocket(token, String(roomId));
-
-      socket.off("room-state");
-      socket.off("error");
-
-      const timeout = setTimeout(() => {
-        socket.off("room-state");
-        socket.off("error");
-        reject(new Error("Request timed out"));
-      }, 10000);
-
-      socket.once("room-state", async () => {
-        clearTimeout(timeout);
-        try {
-          const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`,
-            },
-            body: JSON.stringify({ room: roomId }),
-          });
-
-          if (!resp.ok) throw new Error("Failed to update profile with room id");
-          router.push(`/room/${roomId}`);
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      });
-
-      socket.once("error", (error) => {
-        clearTimeout(timeout);
-        reject(new Error(error.message || "Failed to join room"));
-      });
-
-      socket.emit("join-room", { roomId: String(roomId), token });
-    });
   };
 
   const handleJoinRoom = async (roomId: number) => {
@@ -309,13 +270,20 @@ export default function Rooms() {
           actionLabel: "Leave & Join",
           cancelLabel: "Cancel",
           variant: "warning",
-          onAction: () => leaveAndJoin(roomId),
+          onAction: () => leaveAndJoin(roomId, profileData.room),
         });
         return;
       }
 
-      // Direct join
-      await joinViaSocket(roomId, token);
+      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ room: roomId }),
+      });
+      router.push(`/room/${roomId}`);
     } catch (error) {
       console.error("Error joining room:", error);
       setFeedback({

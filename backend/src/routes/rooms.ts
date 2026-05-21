@@ -73,6 +73,56 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/rooms/:roomId/messages - Get chat history for a specific room
+router.get("/:roomId/messages", supabaseAuth, async (req: Request, res: Response) => {
+  try {
+    const { roomId } = req.params;
+    const supabaseClient = req.supabaseClient;
+
+    if (!supabaseClient) {
+      return res.status(500).json({ error: "Supabase client not initialized" });
+    }
+
+    const { data, error } = await supabaseClient
+      .from("messages")
+      .select("userId:user_id, message, timestamp:created_at")
+      .eq("room_id", roomId)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Supabase error:", error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    const messages = data ?? [];
+    const uniqueUserIds = [...new Set(messages.map((m) => m.userId))];
+
+    let nameById = new Map<string, string>();
+    if (uniqueUserIds.length > 0) {
+      const { data: profiles, error: profilesError } = await supabaseClient
+        .from("profiles")
+        .select("id, name")
+        .in("id", uniqueUserIds);
+
+      if (profilesError) {
+        console.error("Supabase profiles error:", profilesError);
+      } else if (profiles) {
+        nameById = new Map(profiles.map((p) => [p.id as string, p.name as string]));
+      }
+    }
+
+    const enriched = messages.map((m) => ({
+      ...m,
+      name: nameById.get(m.userId) ?? "Unknown",
+    }));
+
+    res.json(enriched);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // GET /api/rooms/:roomId/todos - Get todos for a specific room
 router.get("/:roomId/todos", supabaseAuth, async (req: Request, res: Response) => {
   try {
@@ -87,13 +137,9 @@ router.get("/:roomId/todos", supabaseAuth, async (req: Request, res: Response) =
       .from("todos")
       .select("*")
       .eq("room_id", roomId)
-      .single();
+      .maybeSingle();
 
     if (error) {
-      // If not found, return null todoState (room may not have todos yet)
-      if (error.code === "PGRST116") {
-        return res.json(null);
-      }
       console.error("Supabase error:", error);
       return res.status(500).json({ error: error.message });
     }
@@ -207,7 +253,7 @@ router.get("/:roomId/users", supabaseAuth, async (req: Request, res: Response) =
 
     const { data, error } = await supabaseClient
       .from("profiles")
-      .select("id, name")
+      .select("id, name, character_id")
       .eq("room", roomId);
 
     if (error) {
@@ -218,7 +264,8 @@ router.get("/:roomId/users", supabaseAuth, async (req: Request, res: Response) =
     // Map to RoomUser type
     const users = data.map((u: any) => ({
       userId: u.id,
-      name: u.name
+      name: u.name,
+      characterId: u.character_id,
     }));
 
     res.json(users);
