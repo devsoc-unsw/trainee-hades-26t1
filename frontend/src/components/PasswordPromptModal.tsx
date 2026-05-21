@@ -65,6 +65,7 @@ export function PasswordPromptModal({
           <DialogFooter className="sm:justify-center">
             <Button
               variant="outline"
+              type="button"
               className="h-10 rounded-full px-6 text-sm font-semibold text-[var(--dark-blue)]"
               onClick={() => onOpenChange(false)}
             >
