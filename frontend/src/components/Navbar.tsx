@@ -19,7 +19,7 @@ export default function Navbar() {
   const [lastRoomId, setLastRoomId] = useState<string | null>(null);
 
   const links = [
-    { href: `/room/${lastRoomId}`, label: "Your Room" },
+    ...(lastRoomId ? [{ href: `/room/${lastRoomId}`, label: "Your Room" }] : []),
     { href: "/rooms", label: "Rooms" },
     { href: "/profile", label: "Profile" },
   ];
