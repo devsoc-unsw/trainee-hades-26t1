@@ -34,7 +34,6 @@ interface RoomState {
   todoState: TodoState | null;
   backgroundId: string;
   customDurations: { pomo: number; short: number; long: number };
-  hashPassword: string | null;
 }
 
 const roomStates = new Map<string, RoomState>();
@@ -101,7 +100,7 @@ async function fetchRoomStateFromSupabase(
           .limit(1)
           .maybeSingle(),
         client.from("todos").select("*").eq("room_id", roomId).maybeSingle(),
-        client.from("rooms").select("created_by, hash_password").eq("id", roomId).single(),
+        client.from("rooms").select("created_by, password_hash").eq("id", roomId).single(),
         client
           .from("rooms")
           .select("background_id")
@@ -129,7 +128,7 @@ async function fetchRoomStateFromSupabase(
 
     const hostId = roomResult.data?.created_by || null;
     const backgroundId = backgroundResult.data?.background_id ?? "default";
-    const hashPassword = roomResult.data?.hash_password ?? null;
+    const hashPassword = roomResult.data?.password_hash ?? null;
 
     return { hostId, pomodoroState, todoState, backgroundId, hashPassword };
   } catch (err) {
@@ -229,24 +228,53 @@ export const roomHandler = (io: Server) => {
     console.log(`User connected: ${socket.id}`);
 
     socket.on("join-room", async ({ roomId, token }) => {
-      console.log("[Handler] join-room received:", {
-        roomId,
-        socketId: socket.id,
-      });
+      console.log("[Handler] join-room received:", { roomId, socketId: socket.id });
+      
       const userId = await getUserFromToken(token);
       if (!userId) {
-        console.log("[Handler] Unauthorized join attempt");
         socket.emit("error", { message: "Unauthorized" });
         return;
+      }
+
+      // Ensure the user actually passed the REST API password check
+      const client = createSupabaseClient(token);
+      const { data: profile, error: profileError } = await client
+        .from("profiles")
+        .select("room")
+        .eq("id", userId)
+        .single();
+
+      if (profileError) {
+        console.error(`[Handler] DB Error checking profile for user ${userId}:`, profileError);
+        socket.emit("error", { message: "Server timeout verifying access. Please refresh." });
+        return;
+      }
+
+      if (String(profile?.room) !== String(roomId)) {
+        console.log(`[Handler] User ${userId} blocked from socket join (DB mismatch).`);
+        socket.emit("error", { message: "Access Denied. Please join via the directory." });
+        return;
+      }
+
+      // Forcibly remove this user from ANY other rooms in memory
+      for (const [existingRoomId, existingRoom] of roomStates.entries()) {
+        if (existingRoomId !== roomId && existingRoom.users.has(userId)) {
+          console.log(`[Handler] Sweeping ghost user ${userId} from room ${existingRoomId}`);
+          
+          existingRoom.users.delete(userId);
+          io.to(existingRoomId).emit("user-left", { userId });
+          
+          if (existingRoom.users.size === 0) {
+            roomStates.delete(existingRoomId);
+          }
+        }
       }
 
       socket.join(roomId);
       let room = roomStates.get(roomId);
 
       if (!room) {
-        const { hostId, pomodoroState, todoState, backgroundId, hashPassword } =
-          await fetchRoomStateFromSupabase(roomId, token);
-
+        const { hostId, pomodoroState, todoState, backgroundId } = await fetchRoomStateFromSupabase(roomId, token);
         room = {
           users: new Map(),
           hostId,
@@ -254,51 +282,25 @@ export const roomHandler = (io: Server) => {
           todoState,
           backgroundId,
           customDurations: { pomo: 25, short: 5, long: 15 },
-          hashPassword,
         };
-
         roomStates.set(roomId, room);
-        console.log(
-          "[Handler] Room initialized with todoState:",
-          todoState ? "yes" : "no",
-        );
-      } else {
-        console.log("[Handler] Existing room found in memory");
       }
 
       const { name, characterId } = await getUserProfile(userId, token);
-
       room.users.set(userId, { userId, name, characterId });
       socketUsers.set(socket.id, { userId, roomId, token });
 
-      // Update profile to reflect room membership
-      const client = createSupabaseClient(token);
-      const { error: profileError } = await client
-        .from("profiles")
-        .update({ room: roomId })
-        .eq("id", userId);
-
-      if (profileError) {
-        console.error("Error updating profile with room:", profileError);
-        socket.emit("error", { message: "Failed to update profile" });
-        return;
-      }
-
-      console.log("[Handler] Emitting room-state to socket:", socket.id);
+      // Emit states back to clients
       socket.emit("room-state", {
         users: Array.from(room.users.values()),
         hostId: room.hostId,
         pomodoroState: room.pomodoroState,
         todoState: room.todoState,
         backgroundId: room.backgroundId,
-        hashPassword: room.hashPassword,
+        customDurations: room.customDurations,
       });
 
       socket.to(roomId).emit("user-joined", { userId, name, characterId });
-
-      console.log(
-        `User ${userId} (${name}) joined room ${roomId} with character ${characterId}`,
-      );
     });
 
     socket.on("update-background", async ({ roomId, backgroundId }) => {
@@ -907,28 +909,23 @@ export const roomHandler = (io: Server) => {
       },
     );
 
-    socket.on("disconnect", async() => {
+    socket.on("disconnect", async () => {
       const session = socketUsers.get(socket.id);
+      
       if (session) {
-        const { userId, roomId } = session;
+        const { userId, roomId, token } = session;
         socketUsers.delete(socket.id);
+        
         const room = roomStates.get(roomId);
         if (room) {
           room.users.delete(userId);
           if (room.users.size === 0) {
+            await deleteRoomMessagesFromSupabase(roomId, token);
             roomStates.delete(roomId);
           } else {
             socket.to(roomId).emit("user-left", { userId });
           }
         }
-
-        // Clear room from database
-        const client = createSupabaseClient(session.token);
-        await client
-          .from("profiles")
-          .update({ room: null })
-          .eq("id", session.userId);
-        console.log(`User ${userId} disconnected and left room ${roomId}`);
       }
       console.log(`User disconnected: ${socket.id}`);
     });

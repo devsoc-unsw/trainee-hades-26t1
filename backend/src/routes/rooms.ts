@@ -34,7 +34,7 @@ router.post("/room", supabaseAuth, async (req: Request, res: Response) => {
       location: location || "Online",
       created_by: req.authUser.id,
       created_at: new Date().toISOString(),
-      hash_password: hashedPassword
+      password_hash: hashedPassword
     };
 
     const { data: roomResult, error: roomError } = await supabaseClient
@@ -71,7 +71,7 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
     const { data, error } = await supabaseClient
       .from("rooms")
       .select(
-        "id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at, backgroundId:background_id, hash_password",
+        "id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at, backgroundId:background_id, password_hash",
       )
       .order("created_at", { ascending: false });
 
@@ -82,7 +82,7 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
 
     const sanitizedRooms = data.map(room => ({
       ...room,
-      isPrivate: room.hash_password !== null, // true if password exists, dont send hash password to FE
+      isPrivate: room.password_hash !== null, // true if password exists, dont send hash password to FE
     }));
 
     res.json(sanitizedRooms);
@@ -90,42 +90,6 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
-});
-
-router.post("/:roomId/verify", supabaseAuth, async (req: Request, res: Response) => {
-  const { roomId } = req.params;
-  const { password } = req.body;
-  const authUser = req.authUser;
-
-  const { data: room } = await req.supabaseClient!
-    .from("rooms")
-    .select("created_by, hash_password")
-    .eq("id", roomId)
-    .single();
-
-  if (!room) return res.status(404).json({ error: "Room not found" });
-
-  // Owner Bypass
-  if (room.created_by === authUser?.id) {
-    return res.json({ success: true });
-  }
-
-  // Public Room Bypass
-  if (!room.hash_password) {
-    return res.json({ success: true });
-  }
-
-  // Password Verification
-  if (!password) {
-    return res.status(401).json({ error: "Password required" });
-  }
-
-  const isValid = await bcrypt.compare(password, room.hash_password);
-  if (!isValid) {
-    return res.status(401).json({ error: "Incorrect password" });
-  }
-
-  res.json({ success: true });
 });
 
 // GET /api/rooms/:roomId/messages - Get chat history for a specific room
