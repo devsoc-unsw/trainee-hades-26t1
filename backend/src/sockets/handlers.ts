@@ -34,6 +34,7 @@ interface RoomState {
   todoState: TodoState | null;
   backgroundId: string;
   customDurations: { pomo: number; short: number; long: number };
+  hashPassword: string | null;
 }
 
 const roomStates = new Map<string, RoomState>();
@@ -85,6 +86,7 @@ async function fetchRoomStateFromSupabase(
   pomodoroState: PomodoroState | null;
   todoState: TodoState | null;
   backgroundId: string;
+  hashPassword: string | null;
 }> {
   try {
     const client = createSupabaseClient(token);
@@ -99,7 +101,7 @@ async function fetchRoomStateFromSupabase(
           .limit(1)
           .maybeSingle(),
         client.from("todos").select("*").eq("room_id", roomId).maybeSingle(),
-        client.from("rooms").select("created_by").eq("id", roomId).single(),
+        client.from("rooms").select("created_by, hash_password").eq("id", roomId).single(),
         client
           .from("rooms")
           .select("background_id")
@@ -127,8 +129,9 @@ async function fetchRoomStateFromSupabase(
 
     const hostId = roomResult.data?.created_by || null;
     const backgroundId = backgroundResult.data?.background_id ?? "default";
+    const hashPassword = roomResult.data?.hash_password ?? null;
 
-    return { hostId, pomodoroState, todoState, backgroundId };
+    return { hostId, pomodoroState, todoState, backgroundId, hashPassword };
   } catch (err) {
     console.error("fetchRoomStateFromSupabase failed:", err);
     return {
@@ -136,6 +139,7 @@ async function fetchRoomStateFromSupabase(
       pomodoroState: null,
       todoState: null,
       backgroundId: "default",
+      hashPassword: null,
     };
   }
 }
@@ -240,7 +244,7 @@ export const roomHandler = (io: Server) => {
       let room = roomStates.get(roomId);
 
       if (!room) {
-        const { hostId, pomodoroState, todoState, backgroundId } =
+        const { hostId, pomodoroState, todoState, backgroundId, hashPassword } =
           await fetchRoomStateFromSupabase(roomId, token);
 
         room = {
@@ -250,6 +254,7 @@ export const roomHandler = (io: Server) => {
           todoState,
           backgroundId,
           customDurations: { pomo: 25, short: 5, long: 15 },
+          hashPassword,
         };
 
         roomStates.set(roomId, room);
@@ -286,6 +291,7 @@ export const roomHandler = (io: Server) => {
         pomodoroState: room.pomodoroState,
         todoState: room.todoState,
         backgroundId: room.backgroundId,
+        hashPassword: room.hashPassword,
       });
 
       socket.to(roomId).emit("user-joined", { userId, name, characterId });

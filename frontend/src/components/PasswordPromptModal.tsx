@@ -3,36 +3,32 @@
 import { Eye, EyeOff, Icon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { useState } from "react";
+import { Dispatch, SetStateAction, SubmitEventHandler, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 
 interface PasswordPromptModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   actionLabel: string;
-  onAction: () => void | Promise<void>;
+  onSubmit: SubmitEventHandler<HTMLFormElement>;
+  password: string;
+  setPassword: Dispatch<SetStateAction<string>>;
+  setOpenModal: Dispatch<SetStateAction<boolean>>;
 }
 
 export function PasswordPromptModal({
   open,
   onOpenChange,
   actionLabel,
-  onAction
+  onSubmit,
+  password,
+  setPassword,
+  setOpenModal,
 }: PasswordPromptModalProps) {
   const [showPassword, setShowPassword] = useState(false);
-  const [password, setPassword] = useState("");
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={setOpenModal}>
       <DialogContent className="border-(--dark-blue)/15 bg-(--light-blue) shadow-[0_24px_80px_rgba(95,123,147,0.25)]">
         <DialogHeader className="items-center gap-3 text-center">
           <DialogTitle className="text-2xl font-black text-[var(--dark-blue)]">
@@ -43,12 +39,7 @@ export function PasswordPromptModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={async () => {
-          if (onAction) {
-            await onAction();
-          }
-          onOpenChange(false);
-        }}>
+        <form onSubmit={onSubmit}>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Password
           </label>

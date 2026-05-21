@@ -81,6 +81,13 @@ export default function Room() {
       );
       if (!resp.ok) throw new Error("Failed to fetch room data");
 
+      if (resp.status === 401 || resp.status === 403) {
+        showFeedback("Access Denied", "This is a private room. Please join from the directory.", "error");
+        // Redirect back to /rooms
+        setTimeout(() => router.push("/rooms"), 2000);
+        return;
+      }
+
       const roomData = await resp.json();
       setData(roomData);
 

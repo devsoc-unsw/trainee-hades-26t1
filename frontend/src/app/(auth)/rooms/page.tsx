@@ -18,11 +18,12 @@ import { supabase } from "@/supabaseClient";
 import { pixelify, poppins } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 import { FeedbackModal } from "@/components/FeedbackModal";
-import { initSocket } from "@/lib/socket";
+import { getSocket } from "@/lib/socket";
 import { Feedback } from "@/lib/types";
 import { backgrounds } from "@/lib/backgrounds";
 import { Switch } from "@/components/ui/switch";
 import { Eye, EyeOff } from "lucide-react";
+import { PasswordPromptModal } from "@/components/PasswordPromptModal";
 
 interface Room {
   id: number;
@@ -32,6 +33,7 @@ interface Room {
   createdAt: string;
   createdBy: string;
   backgroundId?: string;
+  isPrivate: boolean;
 }
 
 const getFallbackBackground = (id: number) =>
@@ -60,6 +62,12 @@ export default function Rooms() {
   const [showNewRoomPassword, setShowNewRoomPassword] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Private room stuff
+  const [openPasswordModal, setOpenPasswordModal] = useState(false);
+  const [targetRoom, setTargetRoom] = useState<Room | null>(null);
+  const [roomPassword, setRoomPassword] = useState("");
+
   const router = useRouter();
 
   useEffect(() => {
@@ -201,24 +209,78 @@ export default function Rooms() {
     }
   };
 
+  const executeJoinFlow = async (roomId: number, token: string, password?: string) => {
+    try {
+      if (password) {
+        const verifyResp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          body: JSON.stringify({ password }),
+        });
+
+        if (!verifyResp.ok) {
+          const errorData = await verifyResp.json();
+          throw new Error(errorData.error || "Failed to verify room password");
+          return;
+        }
+      }
+
+      const profileResp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const profileData = await profileResp.json();
+
+      // Check if already in this room
+      if (profileData.room === roomId) {
+        router.push(`/room/${roomId}`);
+        return;
+      }
+
+      if (profileData.room) {
+        // Trigger your existing conflict dialog
+        setFeedback({
+          open: true,
+          title: "Already in a room",
+          description: "Leave your current room and join this one?",
+          actionLabel: "Leave & Join",
+          variant: "warning",
+          onAction: () => leaveAndJoin(roomId, profileData.room),
+        });
+        return;
+      }
+
+      // Direct Join
+      await leaveAndJoin(roomId, null); // Pass null if they have no old room
+    } catch (error) {
+      console.error("Error joining room:", error);
+      setFeedback({
+        open: true,
+        title: "Failed to join room",
+        description: error instanceof Error ? error.message || "An unknown error occurred while joining the room.",
+        actionLabel: "Close",
+        variant: "error",
+      });
+    }
+  };
+
   // Leaves current room and joins new one
-  // Leaves current room and joins new one
-  const leaveAndJoin = async (newRoomId: number, oldRoomId: string) => {
+  const leaveAndJoin = async (newRoomId: number, oldRoomId: string | null) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) return;
 
-      // 1. Explicitly emit leave-room for the old room (This fixes the ghost user bug!)
+      // Explicitly emit leave-room for the old room (This fixes the ghost user bug!)
       const socket = getSocket();
-      if (socket?.connected) {
+      if (socket?.connected && oldRoomId) {
         socket.emit("leave-room", {
           roomId: String(oldRoomId),
           userId: session.user.id
         });
       }
 
-      // 2. Update profile to the new room via REST
+      // Update profile to the new room via REST
       await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
         method: "PUT",
         headers: {
@@ -228,7 +290,7 @@ export default function Rooms() {
         body: JSON.stringify({ room: newRoomId }), // Put them directly in the new room
       });
 
-      // 3. Route! (The Room.tsx component will mount and handle socket initialization)
+      // Route! (The Room.tsx component will mount and handle socket initialization)
       router.push(`/room/${newRoomId}`);
     } catch (error) {
       console.error("Error switching rooms:", error);
@@ -242,7 +304,7 @@ export default function Rooms() {
     }
   };
 
-  const handleJoinRoom = async (roomId: number) => {
+  const handleJoinRoom = async (room: Room) => {
     try {
       const {
         data: { session },
@@ -260,59 +322,49 @@ export default function Rooms() {
         return;
       }
 
-      const profileResp = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`,
-        {
-          method: "GET",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      // const profileResp = await fetch(
+      //   `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`,
+      //   {
+      //     method: "GET",
+      //     headers: { Authorization: `Bearer ${token}` },
+      //   },
+      // );
 
-      if (!profileResp.ok) {
-        const errorData = await profileResp.json();
-        setFeedback({
-          open: true,
-          title: "Failed to fetch profile",
-          description:
-            errorData.error ||
-            "An unknown error occurred while fetching your profile.",
-          actionLabel: "Close",
-          variant: "error",
-        });
+      // if (!profileResp.ok) {
+      //   const errorData = await profileResp.json();
+      //   throw new Error(errorData.error || "Failed to fetch user profile");
+      // }
+
+      // const profileData = await profileResp.json();
+
+      // // Already in this room
+      // if (profileData.room === room.id) {
+      //   router.push(`/room/${room.id}`);
+      //   return;
+      // }
+
+      // // Already in another room — show confirm dialog
+      // if (profileData.room) {
+      //   setFeedback({
+      //     open: true,
+      //     title: "Already in a room",
+      //     description: "Leave your current room and join this one?",
+      //     actionLabel: "Leave & Join",
+      //     cancelLabel: "Cancel",
+      //     variant: "warning",
+      //     onAction: () => leaveAndJoin(room.id, profileData.room),
+      //   });
+      //   return;
+      // }
+
+      const isOwner = session.user.id === room.createdBy;
+      if (room.isPrivate && !isOwner) {
+        setTargetRoom(room);
+        setOpenPasswordModal(true);
         return;
       }
 
-      const profileData = await profileResp.json();
-
-      // Already in this room
-      if (profileData.room === roomId) {
-        router.push(`/room/${roomId}`);
-        return;
-      }
-
-      // Already in another room — show confirm dialog
-      if (profileData.room) {
-        setFeedback({
-          open: true,
-          title: "Already in a room",
-          description: "Leave your current room and join this one?",
-          actionLabel: "Leave & Join",
-          cancelLabel: "Cancel",
-          variant: "warning",
-          onAction: () => leaveAndJoin(roomId, profileData.room),
-        });
-        return;
-      }
-
-      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({ room: roomId }),
-      });
-      router.push(`/room/${roomId}`);
+      executeJoinFlow(room.id, session.access_token);
     } catch (error) {
       console.error("Error joining room:", error);
       setFeedback({
@@ -351,14 +403,14 @@ export default function Rooms() {
             </div>
 
             <div className="grid grid-cols-3 gap-6 mt-8">
-              {filteredRooms.map((room) => (
+              {filteredRooms.map((room, key) => (
                 <RoomCard
                   id={room.id}
-                  key={room.id}
+                  key={key}
                   name={room.roomTitle}
                   location={room.location}
                   imageUrl={getRoomBackground(room)}
-                  onClick={() => handleJoinRoom(room.id)}
+                  onClick={() => handleJoinRoom(room)}
                 />
               ))}
             </div>
@@ -533,6 +585,30 @@ export default function Rooms() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <PasswordPromptModal
+        open={openPasswordModal}
+        onOpenChange={(isOpen) => {
+          setOpenPasswordModal(isOpen);
+          if (!isOpen) {
+            setRoomPassword(""); // Clear the password on close
+            setTargetRoom(null); // Clear the target room
+          }
+        }}
+        actionLabel="Join Room"
+        password={roomPassword}
+        setPassword={setRoomPassword}
+        setOpenModal={setOpenPasswordModal}
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setOpenPasswordModal(false);
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session && targetRoom) {
+            executeJoinFlow(targetRoom.id, session.access_token, roomPassword);
+          }
+          setRoomPassword("");
+        }}
+      />
     </div>
   );
 }

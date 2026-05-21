@@ -16,9 +16,9 @@ router.post("/room", supabaseAuth, async (req: Request, res: Response) => {
         .json({ error: "Missing required field: roomTitle" });
     }
 
-    let password_hash: string | null = null;
-    if (password) {
-      password_hash = await bcrypt.hash(password, 10);
+    let hashedPassword = null;
+    if (password && password.trim().length > 0) {
+      hashedPassword = await bcrypt.hash(password, 10);
     }
 
     if (!req.authUser || !supabaseClient) {
@@ -34,7 +34,7 @@ router.post("/room", supabaseAuth, async (req: Request, res: Response) => {
       location: location || "Online",
       created_by: req.authUser.id,
       created_at: new Date().toISOString(),
-      password_hash,
+      hash_password: hashedPassword
     };
 
     const { data: roomResult, error: roomError } = await supabaseClient
@@ -71,7 +71,7 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
     const { data, error } = await supabaseClient
       .from("rooms")
       .select(
-        "id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at, backgroundId:background_id",
+        "id, roomTitle:room_title, description, location, createdBy:created_by, createdAt:created_at, backgroundId:background_id, hash_password",
       )
       .order("created_at", { ascending: false });
 
@@ -80,11 +80,52 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
       return res.status(500).json({ error: error.message });
     }
 
-    res.json(data);
+    const sanitizedRooms = data.map(room => ({
+      ...room,
+      isPrivate: room.hash_password !== null, // true if password exists, dont send hash password to FE
+    }));
+
+    res.json(sanitizedRooms);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
+});
+
+router.post("/:roomId/verify", supabaseAuth, async (req: Request, res: Response) => {
+  const { roomId } = req.params;
+  const { password } = req.body;
+  const authUser = req.authUser;
+
+  const { data: room } = await req.supabaseClient!
+    .from("rooms")
+    .select("created_by, hash_password")
+    .eq("id", roomId)
+    .single();
+
+  if (!room) return res.status(404).json({ error: "Room not found" });
+
+  // Owner Bypass
+  if (room.created_by === authUser?.id) {
+    return res.json({ success: true });
+  }
+
+  // Public Room Bypass
+  if (!room.hash_password) {
+    return res.json({ success: true });
+  }
+
+  // Password Verification
+  if (!password) {
+    return res.status(401).json({ error: "Password required" });
+  }
+
+  const isValid = await bcrypt.compare(password, room.hash_password);
+  if (!isValid) {
+    return res.status(401).json({ error: "Incorrect password" });
+  }
+
+  res.json({ success: true });
 });
 
 // GET /api/rooms/:roomId/messages - Get chat history for a specific room
@@ -230,7 +271,6 @@ router.put("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
     if (description !== undefined) updateData.description = description;
     if (location !== undefined) updateData.location = location;
     if (backgroundId !== undefined) updateData.background_id = backgroundId;
-
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({
         error: "Please provide at least one field to update",
