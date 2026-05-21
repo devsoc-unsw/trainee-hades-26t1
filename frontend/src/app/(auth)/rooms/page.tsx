@@ -63,16 +63,15 @@ export default function Rooms() {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Private room stuff
+  // Private room / join flow state
   const [openPasswordModal, setOpenPasswordModal] = useState(false);
   const [targetRoom, setTargetRoom] = useState<Room | null>(null);
   const [roomPassword, setRoomPassword] = useState("");
+  // Tracks whether the user has already confirmed "Leave & Join" so the
+  // password modal re-entry doesn't show the confirmation a second time.
+  const [leaveConfirmed, setLeaveConfirmed] = useState(false);
 
   const router = useRouter();
-
-  useEffect(() => {
-    setFilter("");
-  }, []);
 
   const handleCreateRoom = async (title: string) => {
     try {
@@ -143,11 +142,10 @@ export default function Rooms() {
 
       await handleGetRooms();
     } catch (error) {
-      console.error("Error creating room:", error);
       setFeedback({
         open: true,
         title: "Failed to create room",
-        description: "An unknown error occurred while creating the room.",
+        description: error instanceof Error ? error.message : "An unknown error occurred while creating the room.",
         actionLabel: "Close",
         variant: "error",
       });
@@ -175,7 +173,7 @@ export default function Rooms() {
 
       const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms`, {
         method: "GET",
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!resp.ok) {
@@ -197,11 +195,10 @@ export default function Rooms() {
       setRooms(data);
       setLoading(false);
     } catch (error) {
-      console.error("Error fetching rooms:", error);
       setFeedback({
         open: true,
         title: "Failed to fetch rooms",
-        description: "An unknown error occurred while fetching rooms.",
+        description: error instanceof Error ? error.message : "An unknown error occurred while fetching rooms.",
         actionLabel: "Close",
         variant: "error",
       });
@@ -209,102 +206,60 @@ export default function Rooms() {
     }
   };
 
-  const executeJoinFlow = async (roomId: number, token: string, password?: string) => {
+  const leaveAndJoin = async (
+    newRoomId: number,
+    oldRoomId: string | null,
+    password: string | null,
+  ) => {
     try {
-      if (password) {
-        const verifyResp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}/verify`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-          body: JSON.stringify({ password }),
-        });
-
-        if (!verifyResp.ok) {
-          const errorData = await verifyResp.json();
-          throw new Error(errorData.error || "Failed to verify room password");
-          return;
-        }
-      }
-
-      const profileResp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
-        method: "GET",
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      const profileData = await profileResp.json();
-
-      // Check if already in this room
-      if (profileData.room === roomId) {
-        router.push(`/room/${roomId}`);
-        return;
-      }
-
-      if (profileData.room) {
-        // Trigger your existing conflict dialog
-        setFeedback({
-          open: true,
-          title: "Already in a room",
-          description: "Leave your current room and join this one?",
-          actionLabel: "Leave & Join",
-          variant: "warning",
-          onAction: () => leaveAndJoin(roomId, profileData.room),
-        });
-        return;
-      }
-
-      // Direct Join
-      await leaveAndJoin(roomId, null); // Pass null if they have no old room
-    } catch (error) {
-      console.error("Error joining room:", error);
-      setFeedback({
-        open: true,
-        title: "Failed to join room",
-        description: error instanceof Error ? error.message || "An unknown error occurred while joining the room.",
-        actionLabel: "Close",
-        variant: "error",
-      });
-    }
-  };
-
-  // Leaves current room and joins new one
-  const leaveAndJoin = async (newRoomId: number, oldRoomId: string | null) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) return;
 
-      // Explicitly emit leave-room for the old room (This fixes the ghost user bug!)
+      // Explicitly emit leave-room for the old room (fixes the ghost user bug)
       const socket = getSocket();
       if (socket?.connected && oldRoomId) {
         socket.emit("leave-room", {
           roomId: String(oldRoomId),
-          userId: session.user.id
+          userId: session.user.id,
         });
       }
 
-      // Update profile to the new room via REST
-      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ room: newRoomId }), // Put them directly in the new room
+        body: JSON.stringify({ room: newRoomId, password }),
       });
 
-      // Route! (The Room.tsx component will mount and handle socket initialization)
+      if (!resp.ok) {
+        const errorData = await resp.json();
+        throw new Error(errorData.error || "Failed to update profile in database");
+      }
+
       router.push(`/room/${newRoomId}`);
     } catch (error) {
-      console.error("Error switching rooms:", error);
       setFeedback({
         open: true,
         title: "Failed to switch rooms",
-        description: "Please try again.",
+        description: error instanceof Error ? error.message : "Please try again.",
         actionLabel: "Close",
         variant: "error",
       });
     }
   };
 
-  const handleJoinRoom = async (room: Room) => {
+  const handleJoinRoom = async (
+    room: Room,
+    passwordOverride?: string,
+    // When true the user has already confirmed "Leave & Join" — skip the
+    // confirmation dialog and go straight to the password gate or leaveAndJoin.
+    leaveAlreadyConfirmed = false,
+  ) => {
     try {
       const {
         data: { session },
@@ -322,55 +277,76 @@ export default function Rooms() {
         return;
       }
 
-      // const profileResp = await fetch(
-      //   `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`,
-      //   {
-      //     method: "GET",
-      //     headers: { Authorization: `Bearer ${token}` },
-      //   },
-      // );
+      const profileResp = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
-      // if (!profileResp.ok) {
-      //   const errorData = await profileResp.json();
-      //   throw new Error(errorData.error || "Failed to fetch user profile");
-      // }
+      if (!profileResp.ok) {
+        const errorData = await profileResp.json();
+        throw new Error(errorData.error || "Failed to fetch user profile");
+      }
 
-      // const profileData = await profileResp.json();
+      const profileData = await profileResp.json();
 
-      // // Already in this room
-      // if (profileData.room === room.id) {
-      //   router.push(`/room/${room.id}`);
-      //   return;
-      // }
-
-      // // Already in another room — show confirm dialog
-      // if (profileData.room) {
-      //   setFeedback({
-      //     open: true,
-      //     title: "Already in a room",
-      //     description: "Leave your current room and join this one?",
-      //     actionLabel: "Leave & Join",
-      //     cancelLabel: "Cancel",
-      //     variant: "warning",
-      //     onAction: () => leaveAndJoin(room.id, profileData.room),
-      //   });
-      //   return;
-      // }
+      // Already in this room — just navigate
+      if (profileData.room === room.id) {
+        router.push(`/room/${room.id}`);
+        return;
+      }
 
       const isOwner = session.user.id === room.createdBy;
-      if (room.isPrivate && !isOwner) {
+
+      // Already in another room — show confirmation ONCE.
+      // If the user has already confirmed (leaveAlreadyConfirmed), fall
+      // through to the password gate / leaveAndJoin below.
+      if (profileData.room && !leaveAlreadyConfirmed) {
+        setFeedback({
+          open: true,
+          title: "Already in a room",
+          description: "Leave your current room and join this one?",
+          actionLabel: "Leave & Join",
+          cancelLabel: "Cancel",
+          variant: "warning",
+          onAction: () => {
+            // Mark that the leave has been confirmed so any subsequent
+            // re-entry (e.g. after the password modal) skips this block.
+            setLeaveConfirmed(true);
+            if (room.isPrivate && !isOwner && !passwordOverride) {
+              // Need a password first — open the modal.
+              // onSubmit will call handleJoinRoom with both the password and
+              // leaveAlreadyConfirmed=true so the confirmation isn't shown again.
+              setTargetRoom(room);
+              setOpenPasswordModal(true);
+            } else {
+              leaveAndJoin(room.id, profileData.room, passwordOverride ?? null);
+            }
+          },
+        });
+        return;
+      }
+
+      // Confirmation already given (or user wasn't in a room) —
+      // gate on password if the room is private.
+      if (room.isPrivate && !isOwner && !passwordOverride) {
         setTargetRoom(room);
         setOpenPasswordModal(true);
         return;
       }
 
-      executeJoinFlow(room.id, session.access_token);
+      await leaveAndJoin(
+        room.id,
+        profileData.room ?? null,
+        passwordOverride ?? null,
+      );
     } catch (error) {
-      console.error("Error joining room:", error);
       setFeedback({
         open: true,
         title: "Failed to join room",
-        description: "An unknown error occurred while joining the room.",
+        description: error instanceof Error ? error.message : "An unknown error occurred while joining the room.",
         actionLabel: "Close",
         variant: "error",
       });
@@ -403,10 +379,10 @@ export default function Rooms() {
             </div>
 
             <div className="grid grid-cols-3 gap-6 mt-8">
-              {filteredRooms.map((room, key) => (
+              {filteredRooms.map((room) => (
                 <RoomCard
                   id={room.id}
-                  key={key}
+                  key={room.id}
                   name={room.roomTitle}
                   location={room.location}
                   imageUrl={getRoomBackground(room)}
@@ -481,7 +457,6 @@ export default function Rooms() {
                     onChange={(e) => setNewRoomDescription(e.target.value)}
                     placeholder="Enter room description"
                     className="bg-(--dark-blue)/50 w-full max-h-32 px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    autoFocus
                   />
                 </div>
                 <div>
@@ -494,7 +469,6 @@ export default function Rooms() {
                     onChange={(e) => setNewRoomLocation(e.target.value)}
                     placeholder="Enter room location"
                     className="bg-(--dark-blue)/50 w-full px-4 py-2 border border-(--dark-blue) rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    autoFocus
                   />
                 </div>
               </div>
@@ -542,9 +516,7 @@ export default function Rooms() {
                           setShowNewRoomPassword((current) => !current)
                         }
                         aria-label={
-                          showNewRoomPassword
-                            ? "Hide password"
-                            : "Show password"
+                          showNewRoomPassword ? "Hide password" : "Show password"
                         }
                         className="absolute inset-y-0 right-0 flex items-center justify-center px-3 text-gray-600 hover:text-(--dark-blue)"
                       >
@@ -591,8 +563,11 @@ export default function Rooms() {
         onOpenChange={(isOpen) => {
           setOpenPasswordModal(isOpen);
           if (!isOpen) {
-            setRoomPassword(""); // Clear the password on close
-            setTargetRoom(null); // Clear the target room
+            setRoomPassword("");
+            setTargetRoom(null);
+            // If the user dismisses the modal without submitting, also reset
+            // the leave confirmation so the next join attempt starts clean.
+            setLeaveConfirmed(false);
           }
         }}
         actionLabel="Join Room"
@@ -601,12 +576,25 @@ export default function Rooms() {
         setOpenModal={setOpenPasswordModal}
         onSubmit={async (e) => {
           e.preventDefault();
+          // Capture all relevant state before any setter runs.
+          const capturedPassword = roomPassword;
+          const capturedRoom = targetRoom;
+          // Forward whether "Leave & Join" was already confirmed so
+          // handleJoinRoom doesn't show the confirmation dialog a second time.
+          const capturedLeaveConfirmed = leaveConfirmed;
+
           setOpenPasswordModal(false);
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session && targetRoom) {
-            executeJoinFlow(targetRoom.id, session.access_token, roomPassword);
-          }
           setRoomPassword("");
+          setTargetRoom(null);
+          setLeaveConfirmed(false);
+
+          if (capturedRoom) {
+            await handleJoinRoom(
+              capturedRoom,
+              capturedPassword,
+              capturedLeaveConfirmed,
+            );
+          }
         }}
       />
     </div>

@@ -1,8 +1,7 @@
 "use client";
-import { useReducer, useEffect, useState } from "react";
+import { useReducer, useEffect, useRef, useState } from "react";
 import { SkipForward, Settings, X, Save, ChevronUp, Clock } from "lucide-react";
 import { getSocket } from "@/lib/socket";
-import { supabase } from "@/supabaseClient";
 
 type Phase = "pomo" | "short" | "long";
 
@@ -20,9 +19,7 @@ interface PomodoroTimerProps {
 }
 
 interface TimerState {
-  // User tracking
-  hostId: string | null;
-  isCurrentUserHost: boolean;
+  // PATCH 1: hostId and isCurrentUserHost removed entirely
 
   // Server state
   serverPomodoroState: ServerPomodoroState | null;
@@ -42,8 +39,7 @@ interface TimerState {
 }
 
 type TimerAction =
-  | { type: "SET_HOST_ID"; payload: string }
-  | { type: "SET_IS_CURRENT_USER_HOST"; payload: boolean }
+  // PATCH 1: SET_HOST_ID and SET_IS_CURRENT_USER_HOST removed
   | { type: "SET_SERVER_STATE"; payload: ServerPomodoroState | null }
   | { type: "SET_TIMER"; payload: { minutes: number; seconds: number } }
   | { type: "SET_PHASE"; payload: { isBreak: boolean; isLongBreak: boolean } }
@@ -56,8 +52,7 @@ type TimerAction =
   | { type: "RESET_SETTINGS" };
 
 const initialState: TimerState = {
-  hostId: null,
-  isCurrentUserHost: false,
+  // PATCH 1: hostId and isCurrentUserHost removed
   serverPomodoroState: null,
   minutes: 25,
   seconds: 0,
@@ -72,10 +67,7 @@ const initialState: TimerState = {
 
 function timerReducer(state: TimerState, action: TimerAction): TimerState {
   switch (action.type) {
-    case "SET_HOST_ID":
-      return { ...state, hostId: action.payload };
-    case "SET_IS_CURRENT_USER_HOST":
-      return { ...state, isCurrentUserHost: action.payload };
+    // PATCH 1: SET_HOST_ID and SET_IS_CURRENT_USER_HOST cases removed
     case "SET_SERVER_STATE":
       return { ...state, serverPomodoroState: action.payload };
     case "SET_TIMER":
@@ -91,26 +83,15 @@ function timerReducer(state: TimerState, action: TimerAction): TimerState {
     case "TOGGLE_SETTINGS":
       return { ...state, showSettings: !state.showSettings, draft: state.durations };
     case "UPDATE_DRAFT":
-      return {
-        ...state,
-        draft: { ...state.draft, ...action.payload },
-      };
+      return { ...state, draft: { ...state.draft, ...action.payload } };
     case "SAVE_SETTINGS":
-      return {
-        ...state,
-        durations: state.draft,
-        showSettings: false,
-      };
+      return { ...state, durations: state.draft, showSettings: false };
     case "RESET_SETTINGS":
-      return {
-        ...state,
-        draft: { pomo: 25, short: 5, long: 15 },
-      };
+      return { ...state, draft: { pomo: 25, short: 5, long: 15 } };
     default:
       return state;
   }
 }
-
 
 export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
   const [state, dispatch] = useReducer(timerReducer, initialState);
@@ -118,18 +99,78 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
 
   const currentPhase: Phase = state.isLongBreak ? "long" : state.isBreak ? "short" : "pomo";
 
+  // PATCH 5: Stable refs so the interval never needs to re-subscribe when
+  // these values change mid-run, preventing the double-fire on expiry.
+  const endTimeRef = useRef<number | null>(null);
+  const currentPhaseRef = useRef<Phase>(currentPhase);
+  const pomoCountRef = useRef<number>(state.pomoCount);
+  const durationsRef = useRef(state.durations);
+  const isRunningRef = useRef(state.isRunning);
+
+  // Keep refs in sync with state on every render
+  currentPhaseRef.current = currentPhase;
+  pomoCountRef.current = state.pomoCount;
+  durationsRef.current = state.durations;
+  isRunningRef.current = state.isRunning;
+
+  const syncLocalStateFromServer = (
+    serverState: ServerPomodoroState,
+    dispatcher: typeof dispatch,
+  ) => {
+    const phase =
+      serverState.mode === "pomodoro"
+        ? "pomo"
+        : serverState.mode === "short_break"
+          ? "short"
+          : "long";
+
+    dispatcher({
+      type: "SET_PHASE",
+      payload: { isBreak: phase === "short", isLongBreak: phase === "long" },
+    });
+    dispatcher({ type: "SET_RUNNING", payload: serverState.status === "running" });
+
+    // PATCH 3: Use SET_DURATIONS (updates state.durations) instead of
+    // UPDATE_DRAFT (which only updated the settings panel draft copy).
+    if (serverState.duration) {
+      const durationInMins = Math.round(serverState.duration / (60 * 1000));
+      dispatcher({
+        type: "SET_DURATIONS",
+        payload: { ...durationsRef.current, [phase]: durationInMins },
+      });
+    }
+
+    if (serverState.status === "running" && serverState.endTime) {
+      // PATCH 5: Mirror endTime into the ref so the interval picks it up
+      // without needing to re-subscribe.
+      endTimeRef.current = serverState.endTime;
+      const now = Date.now();
+      const remaining = Math.max(0, serverState.endTime - now);
+      const mins = Math.floor(remaining / (60 * 1000));
+      const secs = Math.floor((remaining % (60 * 1000)) / 1000);
+      dispatcher({ type: "SET_TIMER", payload: { minutes: mins, seconds: secs } });
+    } else {
+      endTimeRef.current = null;
+      const timeMs =
+        serverState.remainingTime || serverState.duration || 25 * 60 * 1000;
+      const mins = Math.floor(timeMs / (60 * 1000));
+      const secs = Math.floor((timeMs % (60 * 1000)) / 1000);
+      dispatcher({ type: "SET_TIMER", payload: { minutes: mins, seconds: secs } });
+    }
+  };
+
   // Socket setup
   useEffect(() => {
     const socket = getSocket();
+    if (!socket) return; // PATCH 4: null-check
 
     const handleRoomState = (data: {
-      hostId: string;
+      hostId: string; // kept in payload shape but no longer used client-side
       pomodoroState: ServerPomodoroState | null;
-      customDurations?: { pomo: number; short: number; long: number }; // Add this
+      customDurations?: { pomo: number; short: number; long: number };
     }) => {
-      dispatch({ type: "SET_HOST_ID", payload: data.hostId });
+      // PATCH 1: No longer dispatch SET_HOST_ID
 
-      // Sync the host's custom durations to the guest
       if (data.customDurations) {
         dispatch({ type: "SET_DURATIONS", payload: data.customDurations });
       }
@@ -141,17 +182,15 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
     };
 
     const handleTimerUpdated = (data: ServerPomodoroState) => {
-      console.log("Received timer-updated:", data);
+      // PATCH 6: console.log removed
       dispatch({ type: "SET_SERVER_STATE", payload: data });
       syncLocalStateFromServer(data, dispatch);
     };
 
+    // PATCH 2: Use console.warn so "Session not found" and similar expected
+    // server messages don't trigger the Next.js error overlay.
     const handleError = (data: { message: string }) => {
-      // Suppress expected errors that occur during normal operation
-      const suppressedErrors = ["Session not found", "Only host can control timer"];
-      if (!suppressedErrors.includes(data.message)) {
-        console.error("Socket error:", data.message);
-      }
+      console.warn("Socket warning:", data.message);
     };
 
     socket.on("room-state", handleRoomState);
@@ -165,140 +204,111 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
     };
   }, []);
 
-  // Check if current user is host
-  useEffect(() => {
-    // Get current user ID from supabase
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user.id && state.hostId) {
-        dispatch({ type: "SET_IS_CURRENT_USER_HOST", payload: session.user.id === state.hostId });
-      }
-    });
-  }, [state.hostId]);
-
-  const syncLocalStateFromServer = (serverState: ServerPomodoroState, dispatcher: typeof dispatch) => {
-    const phase = serverState.mode === "pomodoro" ? "pomo" : serverState.mode === "short_break" ? "short" : "long";
-    dispatcher({ type: "SET_PHASE", payload: { isBreak: phase === "short", isLongBreak: phase === "long" } });
-    dispatcher({ type: "SET_RUNNING", payload: serverState.status === "running" });
-
-    if (serverState.duration) {
-      const durationInMins = Math.round(serverState.duration / (60 * 1000));
-      dispatcher({
-        type: "UPDATE_DRAFT",
-        payload: { [phase]: durationInMins }
-      });
-    }
-
-    if (serverState.status === "running" && serverState.endTime) {
-      const now = Date.now();
-      const remaining = Math.max(0, serverState.endTime - now);
-      const mins = Math.floor(remaining / (60 * 1000));
-      const secs = Math.floor((remaining % (60 * 1000)) / 1000);
-      dispatcher({ type: "SET_TIMER", payload: { minutes: mins, seconds: secs } });
-    } else {
-      const timeMs = serverState.remainingTime || serverState.duration || 25 * 60 * 1000;
-      const mins = Math.floor(timeMs / (60 * 1000));
-      const secs = Math.floor((timeMs % (60 * 1000)) / 1000);
-      dispatcher({ type: "SET_TIMER", payload: { minutes: mins, seconds: secs } });
-    }
-  };
-
-  const getNextPhase = (phase: Phase): Phase | null => {
-    if (phase === "pomo") {
-      return (state.pomoCount + 1) % 4 === 0 ? "long" : "short";
-    }
-    if (phase === "short") return "pomo";
-    if (phase === "long") return "pomo";
-    return null;
-  };
+  // PATCH 1: Removed the supabase host-check useEffect entirely.
 
   const handleStartTimer = () => {
+    // PATCH 4: null-check getSocket()
     const socket = getSocket();
-    if (!socket.connected) {
-      console.error("Socket not connected");
-      return;
-    }
-    console.log("Emitting start-timer for roomId:", roomId);
+    if (!socket?.connected) return;
+    // PATCH 6: console.log removed
     socket.emit("start-timer", { roomId });
   };
 
   const handlePauseTimer = () => {
+    // PATCH 4: null-check getSocket()
     const socket = getSocket();
-    if (!socket.connected) {
-      console.error("Socket not connected");
-      return;
-    }
-    console.log("Emitting pause-timer for roomId:", roomId);
+    if (!socket?.connected) return;
+    // PATCH 6: console.log removed
     socket.emit("pause-timer", { roomId });
   };
 
   const handleSkip = () => {
-    const newCount = currentPhase === "pomo" ? state.pomoCount + 1 : state.pomoCount;
+    const newCount =
+      currentPhaseRef.current === "pomo"
+        ? pomoCountRef.current + 1
+        : pomoCountRef.current;
 
-    if (currentPhase === "pomo") dispatch({ type: "INCREMENT_POMO_COUNT" });
+    if (currentPhaseRef.current === "pomo") dispatch({ type: "INCREMENT_POMO_COUNT" });
 
     let next: Phase = "pomo";
-    if (currentPhase === "pomo") {
+    if (currentPhaseRef.current === "pomo") {
       next = newCount % 4 === 0 ? "long" : "short";
     }
 
     const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
+    // PATCH 4: null-check getSocket()
     const socket = getSocket();
-    if (socket.connected) {
-      socket.emit("change-pomo-mode", { roomId, mode: modeMap[next], durations: state.durations });
+    if (socket?.connected) {
+      socket.emit("change-pomo-mode", {
+        roomId,
+        mode: modeMap[next],
+        durations: durationsRef.current,
+      });
     }
   };
 
   const handleChangeMode = (phase: Phase) => {
     const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
+    // PATCH 4: null-check getSocket()
     const socket = getSocket();
-    if (!socket.connected) {
-      console.error("Socket not connected");
-      return;
-    }
-    console.log("Emitting change-pomo-mode for roomId:", roomId, "mode:", modeMap[phase]);
-    socket.emit("change-pomo-mode", { roomId, mode: modeMap[phase], durations: state.durations });
+    if (!socket?.connected) return;
+    // PATCH 6: console.log removed
+    socket.emit("change-pomo-mode", {
+      roomId,
+      mode: modeMap[phase],
+      durations: durationsRef.current,
+    });
   };
 
   const handleSaveSettings = () => {
     dispatch({ type: "SAVE_SETTINGS" });
     const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
+    // PATCH 4: null-check getSocket()
     const socket = getSocket();
-    socket.emit("change-pomo-mode", { roomId, mode: modeMap[currentPhase], durations: state.draft });
+    if (!socket?.connected) return;
+    socket.emit("change-pomo-mode", {
+      roomId,
+      mode: modeMap[currentPhaseRef.current],
+      durations: state.draft,
+    });
   };
 
-  const handleOpenSettings = () => {
-    dispatch({ type: "TOGGLE_SETTINGS" });
-  };
-
-  // Timer interval - sync with server
+  // PATCH 5: Interval only depends on state.isRunning. All volatile values
+  // (endTime, currentPhase, pomoCount, durations) are read from stable refs,
+  // so the interval is never torn down mid-run and can't double-fire.
   useEffect(() => {
-    if (!state.isRunning || !state.serverPomodoroState?.endTime) return;
+    if (!state.isRunning) return;
 
     const interval = setInterval(() => {
-      const now = Date.now();
-      const endTime = state.serverPomodoroState?.endTime;
+      const endTime = endTimeRef.current;
       if (!endTime) return;
 
-      const remaining = Math.max(0, endTime - now);
+      const remaining = Math.max(0, endTime - Date.now());
 
       if (remaining <= 0) {
         clearInterval(interval);
 
-        // Timer finished - only host can advance
-        if (state.isCurrentUserHost) {
-          const newCount = currentPhase === "pomo" ? state.pomoCount + 1 : state.pomoCount;
-          if (currentPhase === "pomo") dispatch({ type: "INCREMENT_POMO_COUNT" });
+        // PATCH 1: isCurrentUserHost guard removed — emit for everyone;
+        // the server is responsible for deduplicating concurrent emits.
+        const phase = currentPhaseRef.current;
+        const newCount =
+          phase === "pomo" ? pomoCountRef.current + 1 : pomoCountRef.current;
+        if (phase === "pomo") dispatch({ type: "INCREMENT_POMO_COUNT" });
 
-          let next: Phase = "pomo";
-          if (currentPhase === "pomo") {
-            next = newCount % 4 === 0 ? "long" : "short";
-          }
+        let next: Phase = "pomo";
+        if (phase === "pomo") {
+          next = newCount % 4 === 0 ? "long" : "short";
+        }
 
-          const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
-          const socket = getSocket();
-          if (socket.connected) {
-            socket.emit("change-pomo-mode", { roomId, mode: modeMap[next], durations: state.durations });
-          }
+        const modeMap = { pomo: "pomodoro", short: "short_break", long: "long_break" };
+        // PATCH 4: null-check getSocket()
+        const socket = getSocket();
+        if (socket?.connected) {
+          socket.emit("change-pomo-mode", {
+            roomId,
+            mode: modeMap[next],
+            durations: durationsRef.current,
+          });
         }
         return;
       }
@@ -309,7 +319,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [state.isRunning, state.serverPomodoroState?.endTime, state.isCurrentUserHost, state.durations, currentPhase, state.pomoCount, roomId]);
+  }, [state.isRunning, roomId]); // PATCH 5: no longer depends on volatile state
 
   return (
     <div
@@ -366,10 +376,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
                     max={200}
                     value={state.draft[phase]}
                     onChange={(e) => {
-                      const val = Math.min(
-                        200,
-                        Math.max(1, Number(e.target.value)),
-                      );
+                      const val = Math.min(200, Math.max(1, Number(e.target.value)));
                       dispatch({ type: "UPDATE_DRAFT", payload: { [phase]: val } });
                     }}
                     className="w-16 text-center font-mono text-(--dark-blue) bg-white/75 border-2 border-(--dark-blue) rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
@@ -397,7 +404,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
           ) : (
             /* Timer display */
             <>
-              {/* Toggle */}
+              {/* Mode toggle */}
               <div className="flex w-full gap-2 text-white">
                 <button
                   onClick={() => handleChangeMode("pomo")}
@@ -428,16 +435,16 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
                 </button>
               </div>
 
-              {/* Time */}
+              {/* Time display */}
               <p className="bg-white/75 rounded-md w-full text-center font-mono text-5xl lg:text-6xl 2xl:text-7xl text-(--dark-blue)">
                 {String(state.minutes).padStart(2, "0")}:
                 {String(state.seconds).padStart(2, "0")}
               </p>
 
-              {/* Settings, Start, and Skip buttons */}
+              {/* Controls */}
               <div className="flex justify-between w-full text-white">
                 <button
-                  onClick={handleOpenSettings}
+                  onClick={() => dispatch({ type: "TOGGLE_SETTINGS" })}
                   className="text-(--dark-blue) hover:opacity-50 transition-opacity cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <Settings size={24} />
@@ -453,7 +460,10 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
                   {state.isRunning ? "Pause" : "Start"}
                 </button>
 
-                {getNextPhase(currentPhase) !== null ? (
+                {/* PATCH 7: Skip button shown whenever phase is not "long".
+                    getNextPhase() was removed — it never returned null in
+                    practice so the button was always rendered anyway. */}
+                {currentPhase !== "long" ? (
                   <button
                     onClick={handleSkip}
                     disabled={!state.isRunning}

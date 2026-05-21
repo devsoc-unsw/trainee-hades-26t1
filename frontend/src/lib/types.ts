@@ -18,11 +18,6 @@ export type Room = {
   backgroundId?: string;
 };
 
-export type RoomUser = {
-  userId: string;
-  name: string;
-};
-
 export type TodoItem = {
   id: string;
   text: string;

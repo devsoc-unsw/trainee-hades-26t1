@@ -577,41 +577,28 @@ export const roomHandler = (io: Server) => {
     );
 
     // Send message handler
-    socket.on(
-      "send-message",
-      async ({
-        roomId,
-        userId,
-        message,
-      }: {
-        roomId: string;
-        userId: string;
-        message: string;
-      }) => {
-        const session = socketUsers.get(socket.id);
-        if (!session) {
-          socket.emit("error", { message: "Session not found" });
-          return;
-        }
+    socket.on("send-message", async ({ roomId, userId, message }) => {
+      const session = socketUsers.get(socket.id);
+      if (!session) {
+        socket.emit("error", { message: "Session not found" });
+        return;
+      }
 
-        const saved = await saveMessageToSupabase(
-          roomId,
-          userId,
-          message,
-          session.token,
-        );
+      const room = roomStates.get(roomId);
+      const name = room?.users.get(userId)?.name ?? "Unknown";
+      const timestamp = new Date().toISOString();
 
-        const room = roomStates.get(roomId);
-        const name = room?.users.get(userId)?.name ?? "Unknown";
+      // Broadcast immediately — don't wait for DB
+      io.to(roomId).emit("new-message", { userId, name, message, timestamp });
 
-        io.to(roomId).emit("new-message", {
-          userId,
-          name,
-          message,
-          timestamp: saved?.timestamp ?? new Date().toISOString(),
+      // Persist in the background
+      saveMessageToSupabase(roomId, userId, message, session.token)
+        .then((saved) => {
+          if (!saved) console.error(`[DB] Failed to persist message from ${userId}`);
         });
-      },
-    );
+
+      console.log(`[Handler] Message from ${name} in room ${roomId}:`, message);
+    });
 
     // Start timer handler
     socket.on("start-timer", async ({ roomId }) => {
