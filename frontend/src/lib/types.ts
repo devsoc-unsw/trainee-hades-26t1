@@ -3,7 +3,9 @@ export type Feedback = {
   title: string;
   description: string;
   actionLabel: string;
-  variant: "success" | "error";
+  variant: "success" | "error" | "warning";
+  onAction?: () => void;
+  cancelLabel?: string;
 };
 
 export type Room = {
