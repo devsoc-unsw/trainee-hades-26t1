@@ -7,6 +7,7 @@ import { Pencil } from "lucide-react";
 import { supabase } from "@/supabaseClient";
 import { Feedback } from "@/lib/types";
 import { FeedbackModal } from "@/components/FeedbackModal";
+import { characters } from "@/lib/characters";
 
 export default function Profile() {
   const [editing, setEditing] = useState(false);
@@ -44,7 +45,7 @@ export default function Profile() {
       });
       const data = await res.json();
       setUserName(data.name);
-      setAvatarUrl(data.avatar_url);
+      setAvatarUrl(data.character_id);
       setCurrency(data.currency);
       setEmail(session?.user.email || null);
       setLoading(false);
@@ -134,10 +135,18 @@ export default function Profile() {
               <div className="absolute -top-16 sm:-top-29 w-36 h-36 sm:w-60 sm:h-60 rounded-full bg-(--pastel-yellow) border-4 border-(--dark-blue) overflow-hidden">
                 {avatarUrl ? (
                   <Image
-                    src={avatarUrl}
+                    src={characters.find((c) => c.id === avatarUrl)?.src || "/assets/girl1_Walk.png"}
                     alt="profile picture"
                     fill
-                    className="object-cover"
+                    className="object-cover object-left-top"
+                    style={{
+                      objectFit: "cover",
+                      objectPosition: "left center",
+                      transform: "scale(1.2)",
+                      transformOrigin: "center",
+                      top: "-20%",
+                    }}
+
                   />
                 ) : (
                   <div className="w-full h-full bg-(--pastel-yellow) flex items-center justify-center">

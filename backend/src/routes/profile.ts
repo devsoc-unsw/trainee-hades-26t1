@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { supabaseAuth } from "../middleware/supabaseAuth.js";
+import bcrypt from "bcryptjs";
 
 const router: Router = Router();
 
@@ -36,50 +37,61 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
   }
 });
 
-// PUT /api/profile - Update user profile
+// PUT /api/profile - Update user profile (and handle secure room joining)
 router.put("/", supabaseAuth, async (req: Request, res: Response) => {
   try {
+    const { name, room, password, character_id } = req.body;
+    const authUser = req.authUser;
     const supabaseClient = req.supabaseClient;
-    if (!supabaseClient) {
-      return res.status(500).json({ error: "Supabase client not initialized" });
-    }
 
-    const userId = req.authUser?.id;
-    if (!userId) {
+    if (!supabaseClient || !authUser) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const { name, avatar_url, room, character_id } = req.body;
+    // --- SECURE ROOM JOIN LOGIC ---
+    if (room !== undefined && room !== null) {
+      const { data: roomData, error: roomError } = await supabaseClient
+        .from("rooms")
+        .select("created_by, password_hash")
+        .eq("id", room)
+        .single();
 
-    if (!name && !avatar_url && room === undefined && !character_id) {
-      return res.status(400).json({ error: "Please provide at least one field to update" });
+      if (roomError || !roomData) {
+        return res.status(404).json({ error: "Room not found" });
+      }
+
+      const isOwner = roomData.created_by === authUser.id;
+      const isPrivate = roomData.password_hash !== null;
+
+      // If it's private and they aren't the owner, verify the password NOW
+      if (isPrivate && !isOwner) {
+        if (!password) {
+          return res.status(401).json({ error: "Password required to join this private room." });
+        }
+        const isValid = await bcrypt.compare(password, roomData.password_hash);
+        if (!isValid) {
+          return res.status(401).json({ error: "Incorrect password." });
+        }
+      }
     }
 
-    const updateData: {
-      name?: string;
-      avatar_url?: string;
-      room?: number | null;
-      character_id?: string;
-    } = {};
-
-    if (name) updateData.name = name;
-    if (avatar_url) updateData.avatar_url = avatar_url;
+    // --- UPDATE PROFILE ---
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
     if (room !== undefined) updateData.room = room;
-    if (character_id) updateData.character_id = character_id;
+    if (character_id !== undefined) updateData.character_id = character_id;
 
-    const { data, error } = await supabaseClient
+    const { error: updateError } = await supabaseClient
       .from("profiles")
       .update(updateData)
-      .eq("id", userId)
-      .select("id, name, currency, avatar_url, room, character_id")
-      .single();
+      .eq("id", authUser.id);
 
-    if (error) {
-      console.error("Supabase error:", error);
-      return res.status(500).json({ error: error.message });
+    if (updateError) {
+      console.error("Supabase profile update error:", updateError);
+      return res.status(500).json({ error: "Failed to update profile" });
     }
 
-    res.json(data);
+    res.json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
