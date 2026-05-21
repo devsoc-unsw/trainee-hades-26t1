@@ -2,25 +2,57 @@
   width: 128px;
   height: 150px;
   background-repeat: no-repeat;
-  background-size: 1536px 150px;
   image-rendering: pixelated;
-  animation: walk 1s steps(12, end) infinite;
   transform-origin: bottom left;
 }
 
-.girl1 {
-  background-image: url("/assets/girl1_Walk.png");
+.girl1, .girl2, .girl3 {
+  background-size: 1536px 150px;
+  height: 150px;
+  animation: walk-12 1s steps(12, end) infinite;
 }
 
-.girl2 {
-  background-image: url("/assets/girl2_Walk.png");
+.samurai, .shinobi, .fighter {
+  background-size: 1024px 128px;
+  height: 128px;
+  animation: walk-8 1s steps(8, end) infinite;
 }
 
-.girl3 {
-  background-image: url("/assets/girl3_Walk.png");
+.girl1 { background-image: url("/assets/girl1_Walk.png"); }
+.girl2 { background-image: url("/assets/girl2_Walk.png"); }
+.girl3 { background-image: url("/assets/girl3_Walk.png"); }
+.samurai { background-image: url("/assets/samurai_Walk.png"); }
+.shinobi { background-image: url("/assets/shinobi_Walk.png"); }
+.fighter { background-image: url("/assets/fighter_Walk.png"); }
+
+.character-base.right {
+  transform: scaleX(-1);
+  transform-origin: bottom right;
 }
 
-@keyframes walk {
+@keyframes walk-12 {
   from { background-position: 0px 0; }
   to   { background-position: -1536px 0; }
+}
+
+@keyframes walk-8 {
+  from { background-position: 0px 0; }
+  to   { background-position: -1024px 0; }
+}
+
+.character-picker-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.character-picker-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.character-picker-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 99px;
+}
+
+.character-picker-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
 }
