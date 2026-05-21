@@ -26,7 +26,6 @@ interface RoomStatePayload {
   backgroundId?: string;
 }
 
-// PATCH 9: Single feedback state object (matches Rooms.tsx pattern)
 interface FeedbackState {
   open: boolean;
   title: string;
@@ -46,7 +45,6 @@ export default function Room() {
   const [loading, setLoading] = useState(true);
   const isInitialLoadRef = useRef(true);
 
-  // PATCH 9: Consolidated from four separate useState calls into one object
   const [feedback, setFeedback] = useState<FeedbackState>({
     open: false,
     title: "",
@@ -59,7 +57,6 @@ export default function Room() {
   const roomId = String(useParams().id);
   const router = useRouter();
 
-  // PATCH 9: Updated helper to set the single feedback object
   const showFeedback = (
     title: string,
     description: string,
@@ -72,7 +69,6 @@ export default function Room() {
     setSelectedCharacter(c);
     setShowCharacterPicker(false);
 
-    // PATCH 4: Null-check getSocket() before use
     const socket = getSocket();
     if (!socket) {
       showFeedback("Error", "Socket not initialised. Please refresh the page.");
@@ -87,7 +83,6 @@ export default function Room() {
 
   const updateRoomData = (updatedData: Room) => {
     try {
-      // PATCH 4: Null-check getSocket() before use
       const socket = getSocket();
       if (!socket) {
         showFeedback("Error", "Socket not initialised. Please refresh the page.");
@@ -122,7 +117,6 @@ export default function Room() {
       const currentUserId = session?.user.id;
       if (!token || !currentUserId) throw new Error("User not authenticated");
 
-      // PATCH 4: Null-check getSocket() before use
       const socket = getSocket();
       if (socket) {
         socket.emit("leave-room", { roomId, userId: currentUserId, token });
@@ -165,7 +159,6 @@ export default function Room() {
     setSelectedBg(bg);
     setShowPicker(false);
 
-    // PATCH 4: Null-check getSocket() before use
     const socket = getSocket();
     if (!socket) {
       showFeedback("Error", "Socket not initialised. Please refresh the page.");
@@ -198,8 +191,6 @@ export default function Room() {
       if (bg) setSelectedBg(bg);
     }
 
-    // PATCH 2: Creator profile is fetched here and only here — the
-    // redundant `useEffect` that called getUserProfile has been removed.
     if (roomData.createdBy) {
       const profileResp = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile/${roomData.createdBy}`,
@@ -229,9 +220,6 @@ export default function Room() {
     }
   };
 
-  // PATCH 1: Single authoritative setup effect. The duplicate `reconnect`
-  // useEffect has been deleted entirely (it registered every listener twice,
-  // causing doubled state updates on every socket event).
   useEffect(() => {
     let isMounted = true;
 
@@ -261,7 +249,6 @@ export default function Room() {
 
         const socket = initSocket(token, roomId);
 
-        // PATCH 8: Typed payload — RoomStatePayload instead of `any`
         socket.on("room-state", (state: RoomStatePayload) => {
           setRoomUsers(state.users);
           setTodoState(state.todoState);
@@ -279,16 +266,12 @@ export default function Room() {
           setTodoState(data.todoState);
         });
 
-        // PATCH 8: Typed payload — RoomUser fields instead of `any`
-        socket.on(
-          "user-joined",
-          ({ userId, name, characterId }: RoomUser) => {
-            setRoomUsers((prev) => {
-              if (prev.find((u) => u.userId === userId)) return prev;
-              return [...prev, { userId, name, characterId }];
-            });
-          },
-        );
+        socket.on("user-joined", ({ userId, name, characterId }: RoomUser) => {
+          setRoomUsers((prev) => {
+            if (prev.find((u) => u.userId === userId)) return prev;
+            return [...prev, { userId, name, characterId }];
+          });
+        });
 
         socket.on(
           "character-updated",
@@ -305,17 +288,11 @@ export default function Room() {
           setRoomUsers((prev) => prev.filter((u) => u.userId !== userId));
         });
 
-        socket.on(
-          "background-updated",
-          ({ backgroundId }: { backgroundId: string }) => {
-            const bg = backgrounds.find((b) => b.id === backgroundId);
-            if (bg) setSelectedBg(bg);
-          },
-        );
+        socket.on("background-updated", ({ backgroundId }: { backgroundId: string }) => {
+          const bg = backgrounds.find((b) => b.id === backgroundId);
+          if (bg) setSelectedBg(bg);
+        });
 
-        // PATCH 3: Emit join-room safely regardless of connection timing.
-        // If already connected, fire immediately. Otherwise wait for the
-        // connect event — and clean up that once-listener on unmount.
         const emitJoin = () => socket.emit("join-room", { roomId, token });
         if (socket.connected) {
           emitJoin();
@@ -346,20 +323,10 @@ export default function Room() {
         socket.off("background-updated");
         socket.off("character-updated");
         socket.off("error");
-        // PATCH 3: Remove the once-connect listener if it hasn't fired yet
         socket.off("connect");
       }
     };
   }, [roomId]);
-
-  // PATCH 2: Deleted redundant `createdBy` useEffect (getUserProfile was a
-  // second fetch of the same data already loaded in fetchRoomData).
-
-  // PATCH 5: Deleted no-op `isEditing` useEffect — isInitialLoadRef.current
-  // is already set to false inside initializePage after setLoading(false).
-
-  // PATCH 7: getRoomUsers deleted — dead code after removing the duplicate
-  // effect. Users are populated exclusively via the room-state socket event.
 
   return (
     <div className="min-h-screen bg-white">
@@ -370,7 +337,6 @@ export default function Room() {
         </main>
       ) : (
         <main className="flex flex-col min-h-[calc(100vh-64px)] xl:h-[calc(100vh-64px)] mt-16">
-          {/* Columns Wrapper */}
           <div className="flex flex-col xl:flex-row w-full xl:flex-1 xl:min-h-0">
             {/* Room Content */}
             <div className="w-full xl:w-2/3 flex flex-col items-start p-4 sm:p-6 xl:p-8 gap-3 sm:gap-4">
@@ -461,7 +427,7 @@ export default function Room() {
                     className={`absolute bottom-full left-0 mb-2 z-10 origin-bottom transition-all duration-200 ease-out ${showPicker
                       ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
                       : "opacity-0 scale-95 translate-y-1 pointer-events-none"
-                      }`}
+                    }`}
                   >
                     <div className="bg-(--dark-blue) border-2 border-white/20 rounded-xl p-3 flex flex-col gap-2">
                       {backgrounds.map((b) => (
@@ -475,7 +441,7 @@ export default function Room() {
                             className={`w-16 sm:w-20 h-12 sm:h-14 object-cover rounded-xl cursor-pointer border-2 ${selectedBg.id === b.id
                               ? "border-white"
                               : "border-transparent hover:border-white/50"
-                              }`}
+                            }`}
                           />
                           <span className="text-white font-mono text-xs">{b.label}</span>
                         </div>
@@ -497,9 +463,9 @@ export default function Room() {
                     className={`absolute bottom-full left-0 mb-2 z-10 origin-bottom transition-all duration-200 ease-out ${showCharacterPicker
                       ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
                       : "opacity-0 scale-95 translate-y-1 pointer-events-none"
-                      }`}
+                    }`}
                   >
-                    <div className="bg-(--dark-blue) border-2 border-white/20 rounded-xl p-3 flex flex-col gap-2">
+                    <div className="bg-(--dark-blue) border-2 border-white/20 rounded-xl p-3 overflow-y-auto max-h-131 flex flex-col character-picker-scroll">
                       {characters.map((c) => (
                         <div key={c.id} className="flex flex-col items-center gap-1">
                           <div
@@ -507,7 +473,7 @@ export default function Room() {
                             className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 shrink-0 ${selectedCharacter.id === c.id
                               ? "border-white"
                               : "border-transparent"
-                              }`}
+                            }`}
                             style={{
                               backgroundImage: `url(${c.src})`,
                               backgroundRepeat: "no-repeat",
@@ -535,7 +501,6 @@ export default function Room() {
         </main>
       )}
 
-      {/* PATCH 9: FeedbackModal now reads from the single `feedback` object */}
       <FeedbackModal
         open={feedback.open}
         onOpenChange={(open) => {

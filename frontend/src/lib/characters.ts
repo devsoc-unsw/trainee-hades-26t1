@@ -20,4 +20,19 @@ export const characters: Character[] = [
     label: "School Girl",
     src: "/assets/girl3_Walk.png",
   },
+    {
+    id: "samurai",
+    label: "Samurai",
+    src: "/assets/samurai_Walk.png",
+  },
+  {
+    id: "shinobi",
+    label: "Shinobi",
+    src: "/assets/shinobi_Walk.png",
+  },
+  {
+    id: "fighter",
+    label: "Fighter",
+    src: "/assets/fighter_Walk.png",
+  },
 ];
