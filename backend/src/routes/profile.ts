@@ -40,7 +40,7 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
 // PUT /api/profile - Update user profile (and handle secure room joining)
 router.put("/", supabaseAuth, async (req: Request, res: Response) => {
   try {
-    const { room, password, character_id } = req.body;
+    const { name, room, password, character_id } = req.body;
     const authUser = req.authUser;
     const supabaseClient = req.supabaseClient;
 
@@ -77,6 +77,7 @@ router.put("/", supabaseAuth, async (req: Request, res: Response) => {
 
     // --- UPDATE PROFILE ---
     const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
     if (room !== undefined) updateData.room = room;
     if (character_id !== undefined) updateData.character_id = character_id;
 
