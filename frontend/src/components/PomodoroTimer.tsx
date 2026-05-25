@@ -2,6 +2,10 @@
 import { useReducer, useEffect, useRef, useState } from "react";
 import { SkipForward, Settings, X, Save, ChevronUp, Clock } from "lucide-react";
 import { getSocket } from "@/lib/socket";
+import { alarm } from "@/lib/sounds";
+
+const playAlarm = alarm("/sounds/timerAlarm.wav", 3000);
+
 
 type Phase = "pomo" | "short" | "long";
 
@@ -287,6 +291,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
 
       if (remaining <= 0) {
         clearInterval(interval);
+        playAlarm();
 
         // PATCH 1: isCurrentUserHost guard removed — emit for everyone;
         // the server is responsible for deduplicating concurrent emits.

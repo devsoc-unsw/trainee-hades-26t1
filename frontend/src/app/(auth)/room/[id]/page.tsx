@@ -19,6 +19,8 @@ import { backgrounds } from "@/lib/backgrounds";
 import { characters, type Character } from "@/lib/characters";
 import { RoomUser } from "@/components/CharacterWalkLogic";
 
+
+
 interface RoomStatePayload {
   users: RoomUser[];
   pomodoroState: unknown;
