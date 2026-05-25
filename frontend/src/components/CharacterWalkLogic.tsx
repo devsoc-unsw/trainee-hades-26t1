@@ -13,7 +13,7 @@ export interface Character {
 export interface RoomUser {
   userId: string;
   name: string;
-  characterId?: string;
+  characterId: string | null;
 }
 
 const SPEED = 40;
@@ -57,7 +57,7 @@ export function useAutoWander(roomW: number, roomH: number, users: RoomUser[]) {
   // Run sync when users/room size changes — using functional update avoids the lint issue
   useEffect(() => {
     setCharacters(prev => syncCharacters(prev));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users, roomW, roomH]);
 
   useEffect(() => {
