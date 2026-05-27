@@ -33,6 +33,10 @@ const io = new Server(httpServer, {
 // Middleware
 app.use(express.json());
 
+app.get("/", (req, res) => {
+  res.send("Backend is running");
+});
+
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/test", testRoutes);

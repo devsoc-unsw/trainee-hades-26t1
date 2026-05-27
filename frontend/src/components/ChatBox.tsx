@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronUp, MessageSquare } from "lucide-react";
 import { getSocket } from "@/lib/socket";
 import { supabase } from "@/supabaseClient";
-import type { RoomUser } from "@/lib/types";
+import type { RoomUser } from "@/components/CharacterWalkLogic";
 
 type ChatMessage = {
   userId: string;
