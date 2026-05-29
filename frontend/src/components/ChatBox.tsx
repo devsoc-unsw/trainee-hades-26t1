@@ -5,6 +5,10 @@ import { ChevronUp, MessageSquare } from "lucide-react";
 import { getSocket } from "@/lib/socket";
 import { supabase } from "@/supabaseClient";
 import type { RoomUser } from "@/components/CharacterWalkLogic";
+import { click } from "@/lib/sounds";
+
+const playClick = click("/sounds/singleClick.wav");
+
 
 type ChatMessage = {
   userId: string;
@@ -171,7 +175,11 @@ export default function ChatBox({ roomId, roomUsers }: ChatBoxProps) {
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
             />
             <button
-              onClick={sendMessage}
+              onClick={() => {
+                playClick();
+                sendMessage()
+
+              }}
               className="bg-(--dark-blue) text-white rounded-lg w-20 h-8 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
             >
               <svg

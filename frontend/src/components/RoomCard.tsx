@@ -9,7 +9,7 @@ type RoomCardProps = {
   name: string;
   location?: string;
   imageUrl?: string;
-  onClick?: () => Promise<void>;
+  onClick?: () => void;
 };
 
 export default function RoomCard({
