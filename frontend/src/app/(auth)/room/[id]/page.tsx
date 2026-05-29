@@ -18,7 +18,9 @@ import CharacterAnimation from "@/components/CharacterAnimation";
 import { backgrounds } from "@/lib/backgrounds";
 import { characters, type Character } from "@/lib/characters";
 import { RoomUser } from "@/components/CharacterWalkLogic";
+import { click2 } from "@/lib/sounds";
 
+const playClick2 = click2("/sounds/singleClicks01.wav");
 
 
 interface RoomStatePayload {
@@ -419,7 +421,10 @@ export default function Room() {
                 {/* Background picker */}
                 <div className="relative">
                   <button
-                    onClick={() => setShowPicker(!showPicker)}
+                    onClick={() => {
+                      playClick2();
+                      setShowPicker(!showPicker)
+                    }}
                     className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
                   >
                     Background
@@ -455,7 +460,10 @@ export default function Room() {
                 {/* Character picker */}
                 <div className="relative">
                   <button
-                    onClick={() => setShowCharacterPicker(!showCharacterPicker)}
+                    onClick={() => {
+                      playClick2();
+                      setShowCharacterPicker(!showCharacterPicker)
+                    }}
                     className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
                   >
                     Character

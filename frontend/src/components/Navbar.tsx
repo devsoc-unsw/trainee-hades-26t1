@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/supabaseClient";
+import { click } from "@/lib/sounds"
+
+const playClick = click("/sounds/singleClick.wav");
 
 export default function Navbar() {
   // const [activePath, setActivePath] = useState("/");

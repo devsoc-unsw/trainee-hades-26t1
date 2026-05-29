@@ -3,8 +3,10 @@ import { useReducer, useEffect, useRef, useState } from "react";
 import { SkipForward, Settings, X, Save, ChevronUp, Clock } from "lucide-react";
 import { getSocket } from "@/lib/socket";
 import { alarm } from "@/lib/sounds";
+import { click } from "@/lib/sounds";
 
 const playAlarm = alarm("/sounds/timerAlarm.wav", 3000);
+const playClick = click("/sounds/singleClick.wav");
 
 
 type Phase = "pomo" | "short" | "long";
@@ -216,6 +218,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
     if (!socket?.connected) return;
     // PATCH 6: console.log removed
     socket.emit("start-timer", { roomId });
+    playClick();
   };
 
   const handlePauseTimer = () => {
@@ -224,6 +227,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
     if (!socket?.connected) return;
     // PATCH 6: console.log removed
     socket.emit("pause-timer", { roomId });
+    playClick();
   };
 
   const handleSkip = () => {
@@ -249,6 +253,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
         durations: durationsRef.current,
       });
     }
+    playClick();
   };
 
   const handleChangeMode = (phase: Phase) => {
@@ -262,6 +267,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
       mode: modeMap[phase],
       durations: durationsRef.current,
     });
+    playClick();
   };
 
   const handleSaveSettings = () => {
@@ -275,6 +281,7 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
       mode: modeMap[currentPhaseRef.current],
       durations: state.draft,
     });
+    playClick();
   };
 
   // PATCH 5: Interval only depends on state.isRunning. All volatile values
@@ -391,7 +398,10 @@ export default function PomodoroTimer({ roomId }: PomodoroTimerProps) {
 
               <div className="flex items-center gap-4 mt-1">
                 <button
-                  onClick={() => dispatch({ type: "RESET_SETTINGS" })}
+                  onClick={() => {
+                    playClick();
+                    dispatch({ type: "RESET_SETTINGS" })}
+                  }
                   className="text-sm rounded-lg shrink-0 px-4 py-2 text-(--dark-blue) border-2 border-(--dark-blue) bg-white/75 cursor-pointer shadow-[0_4px_0_0_var(--dark-blue)] hover:shadow-none hover:translate-y-1 transition-all duration-75 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Reset

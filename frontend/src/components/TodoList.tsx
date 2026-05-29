@@ -3,6 +3,12 @@ import { useState } from "react";
 import { Trash2, Check, Plus, ChevronUp, ListChecks } from "lucide-react";
 import { getSocket } from "@/lib/socket";
 import type { TodoState, TodoItem } from "@/lib/types";
+import { click2 } from "@/lib/sounds";
+import { click } from "@/lib/sounds";
+
+const playClick = click("/sounds/singleClick.wav");
+const playClick2 = click2("/sounds/singleClicks01.wav");
+
 
 interface TodoListProps {
   roomId: string;
@@ -110,13 +116,18 @@ export default function TodoList({ roomId, todoState }: TodoListProps) {
                 </span>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => toggleTask(task.id)}
+                    onClick={() => {
+                      playClick();
+                      toggleTask(task.id)}}
                     className="cursor-pointer text-white hover:opacity-50 transition-opacity duration-150"
                   >
                     <Check size={16} />
                   </button>
                   <button
-                    onClick={() => deleteTask(task.id)}
+                    onClick={() => {
+                      playClick2();
+                      deleteTask(task.id)}
+                    }
                     className="cursor-pointer text-white hover:opacity-50 transition-opacity duration-150"
                   >
                     <Trash2 size={16} />

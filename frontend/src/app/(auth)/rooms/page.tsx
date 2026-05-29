@@ -6,6 +6,10 @@ import Loading from "@/components/Loading";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { click } from "@/lib/sounds";
+
+const playClick = click("/sounds/singleClick.wav");
+
 import {
   Dialog,
   DialogContent,
@@ -386,7 +390,10 @@ export default function Rooms() {
                   name={room.roomTitle}
                   location={room.location}
                   imageUrl={getRoomBackground(room)}
-                  onClick={() => handleJoinRoom(room)}
+                  onClick={() => {
+                    playClick();
+                    handleJoinRoom(room)
+                  }}
                 />
               ))}
             </div>
