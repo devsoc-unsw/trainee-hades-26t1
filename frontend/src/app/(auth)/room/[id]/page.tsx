@@ -6,7 +6,7 @@ import Loading from "@/components/Loading";
 import PomodoroTimer from "@/components/PomodoroTimer";
 import TodoList from "@/components/TodoList";
 import ChatBox from "@/components/ChatBox";
-import { PencilLine, Check, LogOut } from "lucide-react";
+import { PencilLine, Check, LogOut, Trash2 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { type Room, type TodoState } from "@/lib/types";
 import { supabase } from "@/supabaseClient";
@@ -22,7 +22,6 @@ import { click2 } from "@/lib/sounds";
 
 const playClick2 = click2("/sounds/singleClicks01.wav");
 
-
 interface RoomStatePayload {
   users: RoomUser[];
   pomodoroState: unknown;
@@ -34,13 +33,17 @@ interface FeedbackState {
   open: boolean;
   title: string;
   description: string;
-  variant: "success" | "error";
+  variant: "success" | "error" | "warning";
+  actionLabel?: string;
+  cancelLabel?: string;
+  onAction?: () => void | Promise<void>;
 }
 
 export default function Room() {
   const [isEditing, setIsEditing] = useState(false);
   const [data, setData] = useState<Room | null>(null);
   const [createdBy, setCreatedBy] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [selectedBg, setSelectedBg] = useState(backgrounds[0]);
   const [showPicker, setShowPicker] = useState(false);
   const [roomUsers, setRoomUsers] = useState<RoomUser[]>([]);
@@ -81,7 +84,10 @@ export default function Room() {
     if (socket.connected) {
       socket.emit("update-character", { roomId, characterId: c.id });
     } else {
-      showFeedback("Error", "Disconnected. Please refresh to change character.");
+      showFeedback(
+        "Error",
+        "Disconnected. Please refresh to change character.",
+      );
     }
   };
 
@@ -89,7 +95,10 @@ export default function Room() {
     try {
       const socket = getSocket();
       if (!socket) {
-        showFeedback("Error", "Socket not initialised. Please refresh the page.");
+        showFeedback(
+          "Error",
+          "Socket not initialised. Please refresh the page.",
+        );
         return;
       }
       if (!socket.connected) {
@@ -147,7 +156,11 @@ export default function Room() {
         return;
       }
 
-      showFeedback("Room Left", "You have successfully left the room.", "success");
+      showFeedback(
+        "Room Left",
+        "You have successfully left the room.",
+        "success",
+      );
       setTimeout(() => {
         router.push("/rooms");
       }, 1500);
@@ -157,6 +170,63 @@ export default function Room() {
         error instanceof Error ? error.message : "Failed to leave room",
       );
     }
+  };
+
+  const handleDeleteRoom = async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const userId = session?.user.id;
+      if (!token || !userId) throw new Error("User not authenticated");
+
+      const resp = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      if (!resp.ok) {
+        const errorResp = await resp.json();
+        showFeedback(
+          "Failed to Delete Room",
+          errorResp.error || "Could not delete the room.",
+        );
+        return;
+      }
+
+      // The room is gone; leave the socket room so other clients update.
+      const socket = getSocket();
+      if (socket) {
+        socket.emit("leave-room", { roomId, userId, token });
+      }
+
+      showFeedback("Room Deleted", "The room has been deleted.", "success");
+      setTimeout(() => {
+        router.push("/rooms");
+      }, 1500);
+    } catch (error) {
+      showFeedback(
+        "Error",
+        error instanceof Error ? error.message : "Failed to delete room",
+      );
+    }
+  };
+
+  const confirmDeleteRoom = () => {
+    setFeedback({
+      open: true,
+      title: "Delete this room?",
+      description:
+        "This room and its chat and todos will be permanently deleted. This cannot be undone.",
+      variant: "warning",
+      actionLabel: "Delete",
+      cancelLabel: "Cancel",
+      onAction: handleDeleteRoom,
+    });
   };
 
   const handleBgChange = async (bg: (typeof backgrounds)[0]) => {
@@ -209,9 +279,12 @@ export default function Room() {
 
   const fetchSavedCharacter = async (token: string) => {
     try {
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const resp = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       if (resp.ok) {
         const profile = await resp.json();
         if (profile.character_id) {
@@ -239,6 +312,8 @@ export default function Room() {
         if (isMounted) showFeedback("Error", "User not authenticated");
         return;
       }
+
+      if (isMounted) setCurrentUserId(session?.user.id ?? null);
 
       try {
         await Promise.all([
@@ -279,7 +354,13 @@ export default function Room() {
 
         socket.on(
           "character-updated",
-          ({ userId, characterId }: { userId: string; characterId: string }) => {
+          ({
+            userId,
+            characterId,
+          }: {
+            userId: string;
+            characterId: string;
+          }) => {
             setRoomUsers((prevUsers) =>
               prevUsers.map((user) =>
                 user.userId === userId ? { ...user, characterId } : user,
@@ -292,10 +373,13 @@ export default function Room() {
           setRoomUsers((prev) => prev.filter((u) => u.userId !== userId));
         });
 
-        socket.on("background-updated", ({ backgroundId }: { backgroundId: string }) => {
-          const bg = backgrounds.find((b) => b.id === backgroundId);
-          if (bg) setSelectedBg(bg);
-        });
+        socket.on(
+          "background-updated",
+          ({ backgroundId }: { backgroundId: string }) => {
+            const bg = backgrounds.find((b) => b.id === backgroundId);
+            if (bg) setSelectedBg(bg);
+          },
+        );
 
         const emitJoin = () => socket.emit("join-room", { roomId, token });
         if (socket.connected) {
@@ -397,10 +481,14 @@ export default function Room() {
 
               {/* Author and Room Description */}
               <div className="flex flex-col sm:flex-row w-full gap-2 sm:gap-6 text-(--dark-blue) sm:justify-between sm:items-center">
-                <div className="font-mono text-sm">{data?.description || ""}</div>
+                <div className="font-mono text-sm">
+                  {data?.description || ""}
+                </div>
                 <div className="bg-(--pastel-yellow) border-2 border-(--dark-blue) rounded-xl p-2 text-sm self-start sm:self-auto whitespace-nowrap">
                   Created by:{" "}
-                  <span className="font-semibold">{createdBy || "Unknown"}</span>
+                  <span className="font-semibold">
+                    {createdBy || "Unknown"}
+                  </span>
                 </div>
               </div>
 
@@ -423,7 +511,7 @@ export default function Room() {
                   <button
                     onClick={() => {
                       playClick2();
-                      setShowPicker(!showPicker)
+                      setShowPicker(!showPicker);
                     }}
                     className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
                   >
@@ -431,26 +519,33 @@ export default function Room() {
                   </button>
 
                   <div
-                    className={`absolute bottom-full left-0 mb-2 z-10 origin-bottom transition-all duration-200 ease-out ${showPicker
-                      ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
-                      : "opacity-0 scale-95 translate-y-1 pointer-events-none"
+                    className={`absolute bottom-full left-0 mb-2 z-10 origin-bottom transition-all duration-200 ease-out ${
+                      showPicker
+                        ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
+                        : "opacity-0 scale-95 translate-y-1 pointer-events-none"
                     }`}
                   >
                     <div className="bg-(--dark-blue) border-2 border-white/20 rounded-xl p-3 flex flex-col gap-2">
                       {backgrounds.map((b) => (
-                        <div key={b.id} className="flex flex-col items-center gap-1">
+                        <div
+                          key={b.id}
+                          className="flex flex-col items-center gap-1"
+                        >
                           <Image
                             src={b.src}
                             alt={b.label}
                             width={80}
                             height={56}
                             onClick={() => handleBgChange(b)}
-                            className={`w-16 sm:w-20 h-12 sm:h-14 object-cover rounded-xl cursor-pointer border-2 ${selectedBg.id === b.id
-                              ? "border-white"
-                              : "border-transparent hover:border-white/50"
+                            className={`w-16 sm:w-20 h-12 sm:h-14 object-cover rounded-xl cursor-pointer border-2 ${
+                              selectedBg.id === b.id
+                                ? "border-white"
+                                : "border-transparent hover:border-white/50"
                             }`}
                           />
-                          <span className="text-white font-mono text-xs">{b.label}</span>
+                          <span className="text-white font-mono text-xs">
+                            {b.label}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -462,7 +557,7 @@ export default function Room() {
                   <button
                     onClick={() => {
                       playClick2();
-                      setShowCharacterPicker(!showCharacterPicker)
+                      setShowCharacterPicker(!showCharacterPicker);
                     }}
                     className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
                   >
@@ -470,19 +565,24 @@ export default function Room() {
                   </button>
 
                   <div
-                    className={`absolute bottom-full left-0 mb-2 z-10 origin-bottom transition-all duration-200 ease-out ${showCharacterPicker
-                      ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
-                      : "opacity-0 scale-95 translate-y-1 pointer-events-none"
+                    className={`absolute bottom-full left-0 mb-2 z-10 origin-bottom transition-all duration-200 ease-out ${
+                      showCharacterPicker
+                        ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
+                        : "opacity-0 scale-95 translate-y-1 pointer-events-none"
                     }`}
                   >
                     <div className="bg-(--dark-blue) border-2 border-white/20 rounded-xl p-3 overflow-y-auto max-h-131 flex flex-col character-picker-scroll">
                       {characters.map((c) => (
-                        <div key={c.id} className="flex flex-col items-center gap-1">
+                        <div
+                          key={c.id}
+                          className="flex flex-col items-center gap-1"
+                        >
                           <div
                             onClick={() => handleCharacterChange(c)}
-                            className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 shrink-0 ${selectedCharacter.id === c.id
-                              ? "border-white"
-                              : "border-transparent"
+                            className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 shrink-0 ${
+                              selectedCharacter.id === c.id
+                                ? "border-white"
+                                : "border-transparent"
                             }`}
                             style={{
                               backgroundImage: `url(${c.src})`,
@@ -498,6 +598,23 @@ export default function Room() {
                     </div>
                   </div>
                 </div>
+
+                {/* Delete room (owner only) */}
+                {currentUserId && data?.createdBy === currentUserId && (
+                  <button
+                    aria-label="Delete Room"
+                    onClick={() => {
+                      playClick2();
+                      confirmDeleteRoom();
+                    }}
+                    className="ml-auto group flex items-center justify-end overflow-hidden bg-transparent text-rose-500/80 border-2 border-rose-300 font-mono text-xs px-3 py-2 rounded-xl hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-colors cursor-pointer"
+                  >
+                    <span className="max-w-0 opacity-0 overflow-hidden whitespace-nowrap transition-all duration-300 ease-out group-hover:max-w-30 group-hover:opacity-100 group-hover:mr-2">
+                      Delete Room
+                    </span>
+                    <Trash2 size={14} className="shrink-0" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -514,12 +631,20 @@ export default function Room() {
       <FeedbackModal
         open={feedback.open}
         onOpenChange={(open) => {
-          if (!open) setFeedback((prev) => ({ ...prev, open: false, title: "", description: "" }));
+          if (!open)
+            setFeedback((prev) => ({
+              ...prev,
+              open: false,
+              title: "",
+              description: "",
+            }));
         }}
         title={feedback.title}
         description={feedback.description}
         variant={feedback.variant}
-        actionLabel="Close"
+        actionLabel={feedback.actionLabel ?? "Close"}
+        cancelLabel={feedback.cancelLabel}
+        onAction={feedback.onAction}
       />
     </div>
   );
