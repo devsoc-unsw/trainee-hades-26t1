@@ -74,6 +74,7 @@ export default function Rooms() {
   // Tracks whether the user has already confirmed "Leave & Join" so the
   // password modal re-entry doesn't show the confirmation a second time.
   const [leaveConfirmed, setLeaveConfirmed] = useState(false);
+  const [viewerCounts, setViewerCounts] = useState<Record<string, number>>({});
 
   const router = useRouter();
 
@@ -379,6 +380,50 @@ export default function Rooms() {
     handleGetRooms();
   }, []);
 
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    const setup = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      const socket = getSocket(token);
+
+      const handleCounts = (counts: Record<string, number>) => {
+        setViewerCounts(counts);
+      };
+      const handleCountUpdated = ({
+        roomId,
+        count,
+      }: {
+        roomId: string;
+        count: number;
+      }) => {
+        setViewerCounts((prev) => ({ ...prev, [roomId]: count }));
+      };
+
+      if (socket.connected) {
+        socket.emit("get-viewer-counts");
+      } else {
+        socket.once("connect", () => socket.emit("get-viewer-counts"));
+      }
+
+      socket.on("viewer-counts", handleCounts);
+      socket.on("viewer-count-updated", handleCountUpdated);
+
+      cleanup = () => {
+        socket.off("viewer-counts", handleCounts);
+        socket.off("viewer-count-updated", handleCountUpdated);
+      };
+    };
+
+    setup();
+    return () => cleanup?.();
+  }, []);
+
   return (
     <div className="pt-18 overflow-x-hidden">
       <Navbar />
@@ -408,6 +453,7 @@ export default function Rooms() {
                   name={room.roomTitle}
                   location={room.location}
                   imageUrl={getRoomBackground(room)}
+                  viewerCount={viewerCounts[String(room.id)]}
                   onClick={() => {
                     playClick();
                     handleJoinRoom(room);

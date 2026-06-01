@@ -306,6 +306,7 @@ export const roomHandler = (io: Server) => {
       }
 
       const { name, characterId } = await getUserProfile(userId, token);
+      const alreadyInRoom = room.users.has(userId);
       room.users.set(userId, { userId, name, characterId });
       socketUsers.set(socket.id, { userId, roomId, token });
 
@@ -319,7 +320,10 @@ export const roomHandler = (io: Server) => {
         customDurations: room.customDurations,
       });
 
-      socket.to(roomId).emit("user-joined", { userId, name, characterId });
+      if (!alreadyInRoom) {
+        socket.to(roomId).emit("user-joined", { userId, name, characterId });
+        io.emit("viewer-count-updated", { roomId, count: room.users.size });
+      }
     });
 
     socket.on("update-background", async ({ roomId, backgroundId }) => {
@@ -402,6 +406,7 @@ export const roomHandler = (io: Server) => {
         } else {
           socket.to(roomId).emit("user-left", { userId });
         }
+        io.emit("viewer-count-updated", { roomId, count: room.users.size });
       }
     });
 
@@ -991,6 +996,14 @@ export const roomHandler = (io: Server) => {
       },
     );
 
+    socket.on("get-viewer-counts", () => {
+      const counts: Record<string, number> = {};
+      for (const [roomId, room] of roomStates.entries()) {
+        counts[roomId] = room.users.size;
+      }
+      socket.emit("viewer-counts", counts);
+    });
+
     socket.on("disconnect", async () => {
       const session = socketUsers.get(socket.id);
 
@@ -1007,6 +1020,7 @@ export const roomHandler = (io: Server) => {
           } else {
             socket.to(roomId).emit("user-left", { userId });
           }
+          io.emit("viewer-count-updated", { roomId, count: room.users.size });
         }
       }
       console.log(`User disconnected: ${socket.id}`);
