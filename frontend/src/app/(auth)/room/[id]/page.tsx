@@ -6,7 +6,7 @@ import Loading from "@/components/Loading";
 import PomodoroTimer from "@/components/PomodoroTimer";
 import TodoList from "@/components/TodoList";
 import ChatBox from "@/components/ChatBox";
-import { PencilLine, Check, LogOut, Trash2 } from "lucide-react";
+import { PencilLine, Check, LogOut, Users, Trash2 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { type Room, type TodoState } from "@/lib/types";
 import { supabase } from "@/supabaseClient";
@@ -460,11 +460,23 @@ export default function Room() {
                 <div className="font-mono text-sm">
                   {data?.description || ""}
                 </div>
-                <div className="bg-(--pastel-yellow) border-2 border-(--dark-blue) rounded-xl p-2 text-sm self-start sm:self-auto whitespace-nowrap">
-                  Created by:{" "}
-                  <span className="font-semibold">
-                    {createdBy || "Unknown"}
-                  </span>
+                <div className="flex items-center gap-4 self-start sm:self-auto">
+                  {/* Live Viewer Count */}
+                  <div
+                    className="flex items-center gap-1.5 text-sm font-mono whitespace-nowrap"
+                    title={`${roomUsers.length} ${roomUsers.length === 1 ? "viewer" : "viewers"} in this room`}
+                  >
+                    <Users size={20} className="text-(--dark-blue)" />
+                    <span className="font-semibold tabular-nums">
+                      {roomUsers.length.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="bg-(--pastel-yellow) border-2 border-(--dark-blue) rounded-xl p-2 text-sm whitespace-nowrap">
+                    Created by:{" "}
+                    <span className="font-semibold">
+                      {createdBy || "Unknown"}
+                    </span>
+                  </div>
                 </div>
               </div>
 
