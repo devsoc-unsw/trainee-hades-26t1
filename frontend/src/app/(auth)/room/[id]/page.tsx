@@ -422,6 +422,7 @@ export default function Room() {
                   {data?.description || ""}
                 </div>
                 <div className="flex items-center gap-4 self-start sm:self-auto">
+                  {/* Live Viewer Count */}
                   <div
                     className="flex items-center gap-1.5 text-sm font-mono whitespace-nowrap"
                     title={`${roomUsers.length} ${roomUsers.length === 1 ? "viewer" : "viewers"} in this room`}
