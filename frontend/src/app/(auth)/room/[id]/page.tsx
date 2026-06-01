@@ -172,48 +172,13 @@ export default function Room() {
     }
   };
 
-  const handleDeleteRoom = async () => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const userId = session?.user.id;
-      if (!token || !userId) throw new Error("User not authenticated");
-
-      const resp = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms/${roomId}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-
-      if (!resp.ok) {
-        const errorResp = await resp.json();
-        showFeedback(
-          "Failed to Delete Room",
-          errorResp.error || "Could not delete the room.",
-        );
-        return;
-      }
-
-      // The room is gone; leave the socket room so other clients update.
-      const socket = getSocket();
-      if (socket) {
-        socket.emit("leave-room", { roomId, userId, token });
-      }
-
-      showFeedback("Room Deleted", "The room has been deleted.", "success");
-      setTimeout(() => {
-        router.push("/rooms");
-      }, 1500);
-    } catch (error) {
-      showFeedback(
-        "Error",
-        error instanceof Error ? error.message : "Failed to delete room",
-      );
+  const handleDeleteRoom = () => {
+    const socket = getSocket();
+    if (!socket || !socket.connected) {
+      showFeedback("Error", "Disconnected. Please refresh and try again.");
+      return;
     }
+    socket.emit("delete-room", { roomId });
   };
 
   const confirmDeleteRoom = () => {
@@ -381,6 +346,16 @@ export default function Room() {
           },
         );
 
+        // The owner deleted this room — kick everyone inside.
+        socket.on("room-deleted", () => {
+          showFeedback(
+            "Room Deleted",
+            "This room has been deleted.",
+            "success",
+          );
+          setTimeout(() => router.push("/rooms"), 1500);
+        });
+
         const emitJoin = () => socket.emit("join-room", { roomId, token });
         if (socket.connected) {
           emitJoin();
@@ -410,6 +385,7 @@ export default function Room() {
         socket.off("user-left");
         socket.off("background-updated");
         socket.off("character-updated");
+        socket.off("room-deleted");
         socket.off("error");
         socket.off("connect");
       }

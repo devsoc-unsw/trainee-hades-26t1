@@ -92,55 +92,6 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/rooms/:roomId - Delete a room (owner only)
-router.delete("/:roomId", supabaseAuth, async (req: Request, res: Response) => {
-  try {
-    const { roomId } = req.params;
-    const supabaseClient = req.supabaseClient;
-    const authUser = req.authUser;
-
-    if (!supabaseClient) {
-      return res.status(500).json({ error: "Supabase client not initialized" });
-    }
-    if (!authUser) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    // Only the creator can delete the room
-    const { data: room, error: fetchError } = await supabaseClient
-      .from("rooms")
-      .select("created_by")
-      .eq("id", roomId)
-      .single();
-
-    if (fetchError || !room) {
-      return res.status(404).json({ error: "Room not found" });
-    }
-    if (room.created_by !== authUser.id) {
-      return res
-        .status(403)
-        .json({ error: "Only the room creator can delete this room" });
-    }
-
-    // Dependent rows are handled by the DB: messages/todos/pomos cascade,
-    // and profiles.room is set null on delete.
-    const { error: deleteError } = await supabaseClient
-      .from("rooms")
-      .delete()
-      .eq("id", roomId);
-
-    if (deleteError) {
-      console.error("Supabase error:", deleteError);
-      return res.status(500).json({ error: "Failed to delete room" });
-    }
-
-    res.json({ message: "Room deleted successfully" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
 // GET /api/rooms/:roomId/messages - Get chat history for a specific room
 router.get(
   "/:roomId/messages",
