@@ -1,14 +1,14 @@
 "use client";
 import Image from "next/image";
-import Link from "next/link";
 import { useState } from "react";
-import { MapPin } from "lucide-react";
+import { MapPin, Users } from "lucide-react";
 
 type RoomCardProps = {
   id: number;
   name: string;
   location?: string;
   imageUrl?: string;
+  viewerCount?: number;
   onClick?: () => void;
 };
 
@@ -17,6 +17,7 @@ export default function RoomCard({
   name,
   location = "Unknown Location",
   imageUrl,
+  viewerCount,
   onClick,
 }: RoomCardProps) {
   const [tooltip, setToolTip] = useState<{ x: number; y: number } | null>(null);
@@ -47,12 +48,21 @@ export default function RoomCard({
           <span
             className="text-xl font-(family-name:--font-pixelify) text-white text-center"
             style={{
-              textShadow: "0 0 4px var(--dark-blue), 0 0 4px var(--dark-blue), 0 0 8px var(--dark-blue), 2px 2px 0px var(--dark-blue), -2px -2px 0px var(--dark-blue), 2px -2px 0px var(--dark-blue), -2px 2px 0px var(--dark-blue)",
+              textShadow:
+                "0 0 4px var(--dark-blue), 0 0 4px var(--dark-blue), 0 0 8px var(--dark-blue), 2px 2px 0px var(--dark-blue), -2px -2px 0px var(--dark-blue), 2px -2px 0px var(--dark-blue), -2px 2px 0px var(--dark-blue)",
             }}
           >
             {name}
           </span>
         </div>
+
+        {/* Viewer count badge */}
+        {viewerCount !== undefined && viewerCount > 0 && (
+          <div className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg border border-(--dark-blue) bg-white text-(--dark-blue) text-xs font-mono">
+            <Users size={12} />
+            <span>{viewerCount}</span>
+          </div>
+        )}
       </div>
 
       {/* Mouse Tooltip */}
