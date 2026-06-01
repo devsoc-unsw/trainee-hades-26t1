@@ -449,14 +449,14 @@ export default function Room() {
                 <Button
                   onClick={handleLeaveRoom}
                   variant="outline"
-                  className="flex items-center justify-center aspect-square h-auto self-stretch cursor-pointer shrink-0 rounded-xl border-2 border-(--dark-blue)"
+                  className="flex items-center justify-center h-auto w-16 self-stretch cursor-pointer shrink-0 rounded-xl border-2 border-(--dark-blue)"
                 >
                   <LogOut size={20} className="text-(--dark-blue)" />
                 </Button>
               </div>
 
               {/* Author and Room Description */}
-              <div className="flex flex-col sm:flex-row w-full gap-2 sm:gap-6 text-(--dark-blue) sm:justify-between sm:items-center">
+              <div className="flex flex-col sm:flex-row w-full gap-6 sm:gap-6 text-(--dark-blue) sm:justify-between sm:items-center">
                 <div className="font-mono text-sm">
                   {data?.description || ""}
                 </div>
