@@ -53,7 +53,6 @@ export function FeedbackModal({
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="border-(--dark-blue)/15 bg-(--light-blue) shadow-[0_24px_80px_rgba(95,123,147,0.25)]">
-
         <AlertDialogHeader className="items-center gap-3 text-center">
           <div
             className={`flex h-12 w-12 items-center justify-center rounded-full ${variantStyles[variant]}`}
@@ -61,7 +60,7 @@ export function FeedbackModal({
             <Icon className="h-6 w-6" />
           </div>
 
-          <AlertDialogTitle className="text-2xl font-black text-[var(--dark-blue)]">
+          <AlertDialogTitle className="text-2xl font-black text-(--dark-blue)">
             {title}
           </AlertDialogTitle>
 
@@ -71,12 +70,11 @@ export function FeedbackModal({
         </AlertDialogHeader>
 
         <AlertDialogFooter className="sm:justify-center gap-3">
-
           {/* Cancel Button */}
           {cancelLabel && (
             <Button
               variant="outline"
-              className="h-10 rounded-full px-6 text-sm font-semibold text-[var(--dark-blue)]"
+              className="h-10 rounded-full px-6 text-sm font-semibold text-(--dark-blue)"
               onClick={() => onOpenChange(false)}
             >
               {cancelLabel}
@@ -86,7 +84,7 @@ export function FeedbackModal({
           {/* Action Button */}
           <AlertDialogAction asChild>
             <Button
-              className="h-10 rounded-full px-6 text-sm font-semibold bg-[var(--dark-blue)] text-white hover:opacity-90"
+              className="h-10 rounded-full px-6 text-sm font-semibold bg-(--dark-blue) text-white hover:opacity-90"
               onClick={async () => {
                 if (onAction) await onAction();
                 onOpenChange(false);
@@ -95,7 +93,6 @@ export function FeedbackModal({
               {actionLabel}
             </Button>
           </AlertDialogAction>
-
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

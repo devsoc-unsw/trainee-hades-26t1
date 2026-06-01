@@ -34,7 +34,7 @@ router.post("/room", supabaseAuth, async (req: Request, res: Response) => {
       location: location || "Online",
       created_by: req.authUser.id,
       created_at: new Date().toISOString(),
-      password_hash: hashedPassword
+      password_hash: hashedPassword,
     };
 
     const { data: roomResult, error: roomError } = await supabaseClient
@@ -80,7 +80,7 @@ router.get("/", supabaseAuth, async (req: Request, res: Response) => {
       return res.status(500).json({ error: error.message });
     }
 
-    const sanitizedRooms = data.map(room => ({
+    const sanitizedRooms = data.map((room) => ({
       ...room,
       isPrivate: room.password_hash !== null, // true if password exists, dont send hash password to FE
     }));
@@ -165,11 +165,11 @@ router.get(
           .json({ error: "Supabase client not initialized" });
       }
 
-    const { data, error } = await supabaseClient
-      .from("todos")
-      .select("*")
-      .eq("room_id", roomId)
-      .maybeSingle();
+      const { data, error } = await supabaseClient
+        .from("todos")
+        .select("*")
+        .eq("room_id", roomId)
+        .maybeSingle();
 
       if (error) {
         console.error("Supabase error:", error);
@@ -294,22 +294,22 @@ router.get(
           .json({ error: "Supabase client not initialized" });
       }
 
-    const { data, error } = await supabaseClient
-      .from("profiles")
-      .select("id, name, character_id")
-      .eq("room", roomId);
+      const { data, error } = await supabaseClient
+        .from("profiles")
+        .select("id, name, character_id")
+        .eq("room", roomId);
 
       if (error) {
         console.error("Supabase error:", error);
         return res.status(500).json({ error: error.message });
       }
 
-    // Map to RoomUser type
-    const users = data.map((u: any) => ({
-      userId: u.id,
-      name: u.name,
-      characterId: u.character_id,
-    }));
+      // Map to RoomUser type
+      const users = data.map((u: any) => ({
+        userId: u.id,
+        name: u.name,
+        characterId: u.character_id,
+      }));
 
       res.json(users);
     } catch (err) {

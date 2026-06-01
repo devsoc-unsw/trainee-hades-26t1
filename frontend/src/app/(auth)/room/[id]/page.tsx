@@ -6,7 +6,7 @@ import Loading from "@/components/Loading";
 import PomodoroTimer from "@/components/PomodoroTimer";
 import TodoList from "@/components/TodoList";
 import ChatBox from "@/components/ChatBox";
-import { PencilLine, Check, LogOut, Users } from "lucide-react";
+import { PencilLine, Check, LogOut, Users, Trash2 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { type Room, type TodoState } from "@/lib/types";
 import { supabase } from "@/supabaseClient";
@@ -33,13 +33,17 @@ interface FeedbackState {
   open: boolean;
   title: string;
   description: string;
-  variant: "success" | "error";
+  variant: "success" | "error" | "warning";
+  actionLabel?: string;
+  cancelLabel?: string;
+  onAction?: () => void | Promise<void>;
 }
 
 export default function Room() {
   const [isEditing, setIsEditing] = useState(false);
   const [data, setData] = useState<Room | null>(null);
   const [createdBy, setCreatedBy] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [selectedBg, setSelectedBg] = useState(backgrounds[0]);
   const [showPicker, setShowPicker] = useState(false);
   const [roomUsers, setRoomUsers] = useState<RoomUser[]>([]);
@@ -168,6 +172,28 @@ export default function Room() {
     }
   };
 
+  const handleDeleteRoom = () => {
+    const socket = getSocket();
+    if (!socket || !socket.connected) {
+      showFeedback("Error", "Disconnected. Please refresh and try again.");
+      return;
+    }
+    socket.emit("delete-room", { roomId });
+  };
+
+  const confirmDeleteRoom = () => {
+    setFeedback({
+      open: true,
+      title: "Delete this room?",
+      description:
+        "This room and its chat and todos will be permanently deleted. This cannot be undone.",
+      variant: "warning",
+      actionLabel: "Delete",
+      cancelLabel: "Cancel",
+      onAction: handleDeleteRoom,
+    });
+  };
+
   const handleBgChange = async (bg: (typeof backgrounds)[0]) => {
     setSelectedBg(bg);
     setShowPicker(false);
@@ -252,6 +278,8 @@ export default function Room() {
         return;
       }
 
+      if (isMounted) setCurrentUserId(session?.user.id ?? null);
+
       try {
         await Promise.all([
           fetchRoomData(roomId, token),
@@ -318,6 +346,16 @@ export default function Room() {
           },
         );
 
+        // The owner deleted this room — kick everyone inside.
+        socket.on("room-deleted", () => {
+          showFeedback(
+            "Room Deleted",
+            "This room has been deleted.",
+            "success",
+          );
+          setTimeout(() => router.push("/rooms"), 1500);
+        });
+
         const emitJoin = () => socket.emit("join-room", { roomId, token });
         if (socket.connected) {
           emitJoin();
@@ -347,6 +385,7 @@ export default function Room() {
         socket.off("user-left");
         socket.off("background-updated");
         socket.off("character-updated");
+        socket.off("room-deleted");
         socket.off("error");
         socket.off("connect");
       }
@@ -547,6 +586,23 @@ export default function Room() {
                     </div>
                   </div>
                 </div>
+
+                {/* Delete room (owner only) */}
+                {currentUserId && data?.createdBy === currentUserId && (
+                  <button
+                    aria-label="Delete Room"
+                    onClick={() => {
+                      playClick2();
+                      confirmDeleteRoom();
+                    }}
+                    className="ml-auto group flex items-center justify-end overflow-hidden bg-transparent text-rose-500/80 border-2 border-rose-300 font-mono text-xs px-3 py-2 rounded-xl hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-colors cursor-pointer"
+                  >
+                    <span className="max-w-0 opacity-0 overflow-hidden whitespace-nowrap transition-all duration-300 ease-out group-hover:max-w-30 group-hover:opacity-100 group-hover:mr-2">
+                      Delete Room
+                    </span>
+                    <Trash2 size={14} className="shrink-0" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -574,7 +630,9 @@ export default function Room() {
         title={feedback.title}
         description={feedback.description}
         variant={feedback.variant}
-        actionLabel="Close"
+        actionLabel={feedback.actionLabel ?? "Close"}
+        cancelLabel={feedback.cancelLabel}
+        onAction={feedback.onAction}
       />
     </div>
   );
