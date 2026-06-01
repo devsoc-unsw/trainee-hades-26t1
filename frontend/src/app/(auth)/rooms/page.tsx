@@ -55,7 +55,7 @@ export default function Rooms() {
   const [filter, setFilter] = useState("");
   const [rooms, setRooms] = useState<Room[]>([]);
   const filteredRooms = rooms.filter((room) =>
-    room.roomTitle.toLowerCase().includes(filter.toLowerCase())
+    room.roomTitle.toLowerCase().includes(filter.toLowerCase()),
   );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newRoomTitle, setNewRoomTitle] = useState("");
@@ -149,7 +149,10 @@ export default function Rooms() {
       setFeedback({
         open: true,
         title: "Failed to create room",
-        description: error instanceof Error ? error.message : "An unknown error occurred while creating the room.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "An unknown error occurred while creating the room.",
         actionLabel: "Close",
         variant: "error",
       });
@@ -175,10 +178,13 @@ export default function Rooms() {
         return;
       }
 
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms`, {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const resp = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/rooms`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       if (!resp.ok) {
         const errorData = await resp.json();
@@ -202,7 +208,10 @@ export default function Rooms() {
       setFeedback({
         open: true,
         title: "Failed to fetch rooms",
-        description: error instanceof Error ? error.message : "An unknown error occurred while fetching rooms.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "An unknown error occurred while fetching rooms.",
         actionLabel: "Close",
         variant: "error",
       });
@@ -231,18 +240,23 @@ export default function Rooms() {
         });
       }
 
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const resp = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/profile`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ room: newRoomId, password }),
         },
-        body: JSON.stringify({ room: newRoomId, password }),
-      });
+      );
 
       if (!resp.ok) {
         const errorData = await resp.json();
-        throw new Error(errorData.error || "Failed to update profile in database");
+        throw new Error(
+          errorData.error || "Failed to update profile in database",
+        );
       }
 
       router.push(`/room/${newRoomId}`);
@@ -250,7 +264,8 @@ export default function Rooms() {
       setFeedback({
         open: true,
         title: "Failed to switch rooms",
-        description: error instanceof Error ? error.message : "Please try again.",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
         actionLabel: "Close",
         variant: "error",
       });
@@ -350,7 +365,10 @@ export default function Rooms() {
       setFeedback({
         open: true,
         title: "Failed to join room",
-        description: error instanceof Error ? error.message : "An unknown error occurred while joining the room.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "An unknown error occurred while joining the room.",
         actionLabel: "Close",
         variant: "error",
       });
@@ -392,7 +410,7 @@ export default function Rooms() {
                   imageUrl={getRoomBackground(room)}
                   onClick={() => {
                     playClick();
-                    handleJoinRoom(room)
+                    handleJoinRoom(room);
                   }}
                 />
               ))}
@@ -523,7 +541,9 @@ export default function Rooms() {
                           setShowNewRoomPassword((current) => !current)
                         }
                         aria-label={
-                          showNewRoomPassword ? "Hide password" : "Show password"
+                          showNewRoomPassword
+                            ? "Hide password"
+                            : "Show password"
                         }
                         className="absolute inset-y-0 right-0 flex items-center justify-center px-3 text-gray-600 hover:text-(--dark-blue)"
                       >

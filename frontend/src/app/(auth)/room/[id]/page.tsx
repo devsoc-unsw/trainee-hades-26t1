@@ -501,7 +501,7 @@ export default function Room() {
                       playClick2();
                       setShowPicker(!showPicker);
                     }}
-                    className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
+                    className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacit cursor-pointer"
                   >
                     Background
                   </button>
@@ -547,7 +547,7 @@ export default function Room() {
                       playClick2();
                       setShowCharacterPicker(!showCharacterPicker);
                     }}
-                    className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
+                    className="bg-(--dark-blue) text-white font-mono text-xs px-4 py-2 rounded-xl hover:opacity-80 transition-opacity cursor-pointer"
                   >
                     Character
                   </button>

@@ -24,7 +24,7 @@ export default function RoomCard({
   return (
     <div
       onClick={onClick}
-      className="relative"
+      className="relative cursor-pointer"
       onMouseMove={(e) => {
         const mouse = e.currentTarget.getBoundingClientRect();
         setToolTip({
