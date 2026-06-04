@@ -513,7 +513,7 @@ export default function Room() {
                         : "opacity-0 scale-95 translate-y-1 pointer-events-none"
                     }`}
                   >
-                    <div className="bg-(--dark-blue) border-2 border-white/20 rounded-xl p-3 flex flex-col gap-2">
+                    <div className="bg-(--dark-blue) border-2 border-white/20 rounded-xl p-3 flex flex-col gap-2 max-h-[min(40vh,340px)] xl:max-h-[min(70vh,560px)] overflow-y-auto">
                       {backgrounds.map((b) => (
                         <div
                           key={b.id}
@@ -559,7 +559,7 @@ export default function Room() {
                         : "opacity-0 scale-95 translate-y-1 pointer-events-none"
                     }`}
                   >
-                    <div className="bg-(--dark-blue) border-2 border-white/20 rounded-xl p-3 overflow-y-auto max-h-131 flex flex-col character-picker-scroll">
+                    <div className="bg-(--dark-blue) border-2 border-white/20 rounded-xl p-3 max-h-[min(40vh,340px)] xl:max-h-[min(70vh,560px)] overflow-y-auto flex flex-col character-picker-scroll">
                       {characters.map((c) => (
                         <div
                           key={c.id}
@@ -570,7 +570,7 @@ export default function Room() {
                             className={`w-12 sm:w-16 h-16 sm:h-20 rounded cursor-pointer border-2 shrink-0 ${
                               selectedCharacter.id === c.id
                                 ? "border-white"
-                                : "border-transparent"
+                                : "border-transparent hover:border-white/50"
                             }`}
                             style={{
                               backgroundImage: `url(${c.src})`,
